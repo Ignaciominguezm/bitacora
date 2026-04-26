@@ -7,11 +7,17 @@ export const authRoutes = new Hono()
 
 authRoutes.post('/login', async (c) => {
   const { password } = await c.req.json<{ password: string }>()
-  const hash = process.env.BITACORA_PASSWORD
+  const hash = (process.env.BITACORA_PASSWORD ?? '').trim()
 
   if (!hash) return c.json({ error: 'Server misconfigured' }, 500)
 
-  const valid = await bcrypt.compare(password, hash)
+  let valid: boolean
+  try {
+    valid = await bcrypt.compare(password, hash)
+  } catch {
+    // Hash in env is not a valid bcrypt string (truncated, CRLF-corrupted, etc.)
+    return c.json({ error: 'Server misconfigured' }, 500)
+  }
   if (!valid) return c.json({ error: 'Invalid password' }, 401)
 
   const token = jwt.sign({ user: 'ignacio' }, process.env.JWT_SECRET!, { expiresIn: '48h' })

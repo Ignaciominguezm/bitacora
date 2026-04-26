@@ -1,0 +1,14 @@
+services:
+  bitacora:
+    image: ghcr.io/ignaciominguezm/bitacora:latest
+    container_name: bitacora
+    restart: unless-stopped
+    ports:
+      - "3006:3006"
+    env_file: .env
+    networks:
+      - ignacio-net
+
+networks:
+  ignacio-net:
+    external: true

@@ -3,7 +3,24 @@ import { useState, useEffect } from 'react'
 interface Conversation {
   id: number
   session_id: string
-  [key: string]: unknown
+  display_name?: string
+  last_message?: unknown
+  updated_at?: string
+}
+
+function safeString(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>
+    if ('content' in obj) {
+      const c = obj.content
+      if (typeof c === 'string') return c
+      if (Array.isArray(c)) return c.map((b) => (b as Record<string, unknown>).text ?? '').join(' ')
+    }
+    return JSON.stringify(value)
+  }
+  return String(value)
 }
 
 export function WhatsAppWidget() {
@@ -19,18 +36,21 @@ export function WhatsAppWidget() {
   }, [])
 
   function getDisplayName(conv: Conversation): string {
-    return (conv.display_name as string) || (conv.session_id as string) || `Conversación ${conv.id}`
+    return safeString(conv.display_name || conv.session_id || `Conv. ${conv.id}`)
   }
 
   function getLastMessage(conv: Conversation): string {
-    const msg = (conv.last_message as string) || (conv.message as string) || ''
+    const msg = safeString(conv.last_message)
     return msg.length > 60 ? msg.slice(0, 60) + '…' : msg
   }
 
   function getTimestamp(conv: Conversation): string {
-    const ts = conv.updated_at || conv.created_at || conv.timestamp
-    if (!ts) return ''
-    return new Date(ts as string).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+    if (!conv.updated_at) return ''
+    try {
+      return new Date(conv.updated_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+    } catch {
+      return ''
+    }
   }
 
   return (

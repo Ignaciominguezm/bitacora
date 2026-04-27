@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import ReactMarkdown from 'react-markdown'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -277,11 +278,37 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
                 fontSize: 13,
                 color: '#E8DCC8',
                 lineHeight: 1.5,
-                whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word'
               }}
             >
-              {msg.content}
+              {msg.role === 'user' ? (
+                <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
+              ) : (
+                <ReactMarkdown
+                  components={{
+                    h1: ({ children }) => <div style={{ fontFamily: 'Cinzel, serif', fontSize: 15, color: accentColor, fontWeight: 600, margin: '8px 0 4px' }}>{children}</div>,
+                    h2: ({ children }) => <div style={{ fontFamily: 'Cinzel, serif', fontSize: 13, color: accentColor, fontWeight: 600, margin: '6px 0 3px' }}>{children}</div>,
+                    h3: ({ children }) => <div style={{ fontSize: 13, color: accentColor, fontWeight: 600, margin: '4px 0 2px' }}>{children}</div>,
+                    p: ({ children }) => <div style={{ margin: '2px 0' }}>{children}</div>,
+                    ul: ({ children }) => <ul style={{ margin: '4px 0', paddingLeft: 18 }}>{children}</ul>,
+                    ol: ({ children }) => <ol style={{ margin: '4px 0', paddingLeft: 18 }}>{children}</ol>,
+                    li: ({ children }) => <li style={{ margin: '1px 0', listStyleType: 'disc' }}>{children}</li>,
+                    code: ({ inline, children }: { inline?: boolean; children?: React.ReactNode }) =>
+                      inline ? (
+                        <code style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, background: '#0D0A06', padding: '1px 4px', border: '1px solid rgba(200,168,64,0.15)', color: '#C8A840' }}>{children}</code>
+                      ) : (
+                        <pre style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, background: '#0D0A06', border: '1px solid rgba(200,168,64,0.12)', padding: '8px 10px', overflowX: 'auto', margin: '6px 0' }}>
+                          <code>{children}</code>
+                        </pre>
+                      ),
+                    strong: ({ children }) => <strong style={{ color: '#F0E6C8', fontWeight: 600 }}>{children}</strong>,
+                    em: ({ children }) => <em style={{ color: '#B0A080' }}>{children}</em>,
+                    blockquote: ({ children }) => <div style={{ borderLeft: `2px solid ${accentColor}40`, paddingLeft: 8, margin: '4px 0', color: '#A09070' }}>{children}</div>,
+                  }}
+                >
+                  {msg.content}
+                </ReactMarkdown>
+              )}
               {streaming && i === messages.length - 1 && msg.role === 'assistant' && (
                 <span className="cursor-blink" style={{ color: accentColor }}>▌</span>
               )}

@@ -293,14 +293,19 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
                     ul: ({ children }) => <ul style={{ margin: '4px 0', paddingLeft: 18 }}>{children}</ul>,
                     ol: ({ children }) => <ol style={{ margin: '4px 0', paddingLeft: 18 }}>{children}</ol>,
                     li: ({ children }) => <li style={{ margin: '1px 0', listStyleType: 'disc' }}>{children}</li>,
-                    code: ({ inline, children }: { inline?: boolean; children?: React.ReactNode }) =>
-                      inline ? (
-                        <code style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, background: '#0D0A06', padding: '1px 4px', border: '1px solid rgba(200,168,64,0.15)', color: '#C8A840' }}>{children}</code>
+                    pre: ({ children }) => (
+                      <pre style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, background: '#0D0A06', border: '1px solid rgba(200,168,64,0.12)', padding: '8px 10px', overflowX: 'auto', margin: '6px 0', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                        {children}
+                      </pre>
+                    ),
+                    code: ({ children, className }: { children?: React.ReactNode; className?: string }) => {
+                      const isBlock = /^language-/.test(className ?? '')
+                      return isBlock ? (
+                        <code className={className} style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#E8DCC8' }}>{children}</code>
                       ) : (
-                        <pre style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, background: '#0D0A06', border: '1px solid rgba(200,168,64,0.12)', padding: '8px 10px', overflowX: 'auto', margin: '6px 0' }}>
-                          <code>{children}</code>
-                        </pre>
-                      ),
+                        <code style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, background: '#0D0A06', padding: '1px 4px', border: '1px solid rgba(200,168,64,0.15)', color: '#C8A840' }}>{children}</code>
+                      )
+                    },
                     strong: ({ children }) => <strong style={{ color: '#F0E6C8', fontWeight: 600 }}>{children}</strong>,
                     em: ({ children }) => <em style={{ color: '#B0A080' }}>{children}</em>,
                     blockquote: ({ children }) => <div style={{ borderLeft: `2px solid ${accentColor}40`, paddingLeft: 8, margin: '4px 0', color: '#A09070' }}>{children}</div>,

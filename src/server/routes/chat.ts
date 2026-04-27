@@ -75,7 +75,7 @@ async function proxyWebhookAsSSE(
 }
 
 chatRoutes.post('/unriar', async (c) => {
-  const body = await c.req.json()
+  const { message, sessionId } = await c.req.json<{ message: string; sessionId?: string }>()
   const webhookUrl = process.env.N8N_UNRIAR_WEBHOOK
 
   return streamSSE(c, async (stream) => {
@@ -83,7 +83,7 @@ chatRoutes.post('/unriar', async (c) => {
       await stream.writeSSE({ data: 'Error: N8N_UNRIAR_WEBHOOK not configured' })
     } else {
       try {
-        await proxyWebhookAsSSE(webhookUrl, body, stream)
+        await proxyWebhookAsSSE(webhookUrl, { message, sessionId }, stream)
       } catch (err) {
         await stream.writeSSE({ data: `Error: ${err instanceof Error ? err.message : 'Unknown error'}` })
       }
@@ -93,7 +93,7 @@ chatRoutes.post('/unriar', async (c) => {
 })
 
 chatRoutes.post('/kinnareth', async (c) => {
-  const body = await c.req.json()
+  const { message, sessionId } = await c.req.json<{ message: string; sessionId?: string }>()
   const webhookUrl = process.env.N8N_KINNARETH_WEBHOOK
 
   return streamSSE(c, async (stream) => {
@@ -105,7 +105,7 @@ chatRoutes.post('/kinnareth', async (c) => {
       }
     } else {
       try {
-        await proxyWebhookAsSSE(webhookUrl, body, stream)
+        await proxyWebhookAsSSE(webhookUrl, { message, sessionId }, stream)
       } catch (err) {
         await stream.writeSSE({ data: `Error: ${err instanceof Error ? err.message : 'Unknown error'}` })
       }

@@ -105,7 +105,8 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
           const data = line.slice(6)
           if (data === '[DONE]') break
           if (data) {
-            fullContent += data
+            // Server encodes \n as \\n to keep SSE frames intact
+            fullContent += data.replace(/\\n/g, '\n')
             setMessages((prev) => {
               const updated = [...prev]
               updated[updated.length - 1] = { role: 'assistant', content: fullContent }

@@ -57,21 +57,26 @@ async function proxyWebhookAsSSE(
     signal: AbortSignal.timeout(120_000)
   })
 
-  if (!response.body) {
-    const text = await response.text()
-    await stream.writeSSE({ data: text })
-    return
+  const rawText = await response.text()
+  let content = rawText
+
+  // n8n AI Agent returns { "output": "..." }. Also handle arrays and
+  // other common field names so the code survives workflow changes.
+  try {
+    const json = JSON.parse(rawText) as unknown
+    const record = Array.isArray(json) ? (json as unknown[])[0] : json
+    if (record !== null && typeof record === 'object') {
+      const r = record as Record<string, unknown>
+      const out = r.output ?? r.message ?? r.text ?? r.response
+      if (typeof out === 'string') content = out
+    }
+  } catch {
+    // Not JSON — forward the raw text as-is
   }
 
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    const chunk = decoder.decode(value, { stream: true })
-    if (chunk) await stream.writeSSE({ data: chunk })
-  }
+  // SSE data fields cannot contain raw newlines (they would break the frame).
+  // Encode \n as the two-character sequence \n so the client can restore them.
+  await stream.writeSSE({ data: content.replace(/\n/g, '\\n') })
 }
 
 chatRoutes.post('/unriar', async (c) => {

@@ -74,9 +74,7 @@ async function proxyWebhookAsSSE(
     // Not JSON — forward the raw text as-is
   }
 
-  // SSE data fields cannot contain raw newlines (they would break the frame).
-  // Encode \n as the two-character sequence \n so the client can restore them.
-  await stream.writeSSE({ data: content.replace(/\n/g, '\\n') })
+  await stream.writeSSE({ data: content })
 }
 
 chatRoutes.post('/unriar', async (c) => {

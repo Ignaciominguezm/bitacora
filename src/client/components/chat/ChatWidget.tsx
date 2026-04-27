@@ -92,21 +92,23 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let fullContent = ''
+      let sseBuffer = ''
 
-      while (true) {
+      outer: while (true) {
         const { done, value } = await reader.read()
         if (done) break
-
-        const chunk = decoder.decode(value, { stream: true })
-        const lines = chunk.split('\n')
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          const data = line.slice(6)
-          if (data === '[DONE]') break
+        sseBuffer += decoder.decode(value, { stream: true })
+        const events = sseBuffer.split('\n\n')
+        sseBuffer = events.pop() ?? ''
+        for (const event of events) {
+          const dataLines: string[] = []
+          for (const line of event.split('\n')) {
+            if (line.startsWith('data: ')) dataLines.push(line.slice(6))
+          }
+          const data = dataLines.join('\n')
+          if (data === '[DONE]') break outer
           if (data) {
-            // Server encodes \n as \\n to keep SSE frames intact
-            fullContent += data.replace(/\\n/g, '\n')
+            fullContent += data
             setMessages((prev) => {
               const updated = [...prev]
               updated[updated.length - 1] = { role: 'assistant', content: fullContent }

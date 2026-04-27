@@ -34,6 +34,38 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // On mount: restore the most recent session for this agent, or create one
+  useEffect(() => {
+    async function restoreSession() {
+      try {
+        const histRes = await fetch('/api/chat/history', { credentials: 'include' })
+        const history: Array<{ session_id: string; agent: string }> = await histRes.json()
+        const match = history.find((s) => s.agent === agent)
+
+        if (match) {
+          const sessRes = await fetch(`/api/chat/session/${match.session_id}`, { credentials: 'include' })
+          const sess: { session_id: string; messages: Message[] } = await sessRes.json()
+          setSessionId(sess.session_id)
+          if (Array.isArray(sess.messages) && sess.messages.length > 0) {
+            setMessages(sess.messages)
+          }
+        } else {
+          const newRes = await fetch('/api/chat/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ agent, title: 'Nueva conversación' })
+          })
+          const newSess: Session = await newRes.json()
+          setSessionId(newSess.session_id || newSess.id || '')
+        }
+      } catch {
+        // DB not available — session will be created on first send
+      }
+    }
+    restoreSession()
+  }, [agent])
+
   async function getOrCreateSession(): Promise<string> {
     if (sessionId) return sessionId
 
@@ -184,13 +216,25 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
     setRecording(false)
   }
 
-  function clearSession() {
-    setMessages([])
-    setSessionId(null)
-    setInput('')
+  async function clearSession() {
     if (streaming) {
       abortRef.current?.abort()
       setStreaming(false)
+    }
+    setMessages([])
+    setInput('')
+    setSessionId(null)
+    try {
+      const res = await fetch('/api/chat/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ agent, title: 'Nueva conversación' })
+      })
+      const sess: Session = await res.json()
+      setSessionId(sess.session_id || sess.id || '')
+    } catch {
+      // Will be created on first send
     }
   }
 

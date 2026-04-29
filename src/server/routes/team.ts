@@ -41,10 +41,6 @@ teamRoutes.get('/today', async (c) => {
       : Promise.resolve({ rows: [] })
   ])
 
-  if (timeEntries.status === 'rejected') console.error('[team] horarioDb query error:', timeEntries.reason)
-  if (absences.status === 'rejected') console.error('[team] vacacionesDb query error:', absences.reason)
-  if (tasks.status === 'rejected') console.error('[team] tareasDb query error:', tasks.reason)
-
   return c.json({
     timeEntries: timeEntries.status === 'fulfilled' ? timeEntries.value.rows : [],
     absences: absences.status === 'fulfilled' ? absences.value.rows : [],

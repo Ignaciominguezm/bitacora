@@ -67,8 +67,7 @@ whatsappRoutes.get('/recent', async (c) => {
        LIMIT 20`
     )
     return c.json(result.rows.map(transformRow))
-  } catch (error) {
-    console.error('[whatsapp] GET /recent error:', error)
+  } catch {
     return c.json([])
   }
 })

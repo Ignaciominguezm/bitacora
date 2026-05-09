@@ -6,6 +6,16 @@ interface ServiceStatus {
   latency: number
 }
 
+const SERVICE_LABELS: Record<string, string> = {
+  horario34: 'Horario',
+  coreworks: 'Coreworks',
+  n8n: 'n8n',
+  waha: 'WhatsApp',
+  ollama: 'Ollama',
+  ignaciominguez: 'Ignacio Web',
+  formacion: 'Formación'
+}
+
 const STATUS_COLOR = {
   up: '#4ade80',
   degraded: '#facc15',
@@ -105,7 +115,7 @@ export function EcosystemWidget() {
                   }}
                 />
                 <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#E8DCC8' }}>
-                  {svc.name}
+                  {SERVICE_LABELS[svc.name] ?? svc.name}
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

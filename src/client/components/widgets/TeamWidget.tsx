@@ -4,37 +4,30 @@ interface TimeEntry {
   name: string
   clock_in: string
   clock_out: string | null
+  activo: boolean
 }
 
 interface Absence {
   name: string
-  absence_type: string
-  date_from: string
-  date_to: string
+  type: string
+  start_date: string
+  end_date: string
 }
 
-interface Task {
-  id: number
-  title: string
-  priority: string
-  assigned_to: string
+interface Alerta {
+  name: string
+  clock_in: string
+  tipo: 'madrugada' | 'nocturno'
 }
 
 interface TeamData {
   timeEntries: TimeEntry[]
   absences: Absence[]
-  tasks: Task[]
-}
-
-const PRIORITY_COLOR: Record<string, string> = {
-  urgent: '#f87171',
-  high: '#fb923c',
-  medium: '#facc15',
-  low: '#4ade80'
+  alertas: Alerta[]
 }
 
 export function TeamWidget() {
-  const [data, setData] = useState<TeamData>({ timeEntries: [], absences: [], tasks: [] })
+  const [data, setData] = useState<TeamData>({ timeEntries: [], absences: [], alertas: [] })
   const [loading, setLoading] = useState(true)
 
   async function fetchTeam() {
@@ -56,8 +49,21 @@ export function TeamWidget() {
   }, [])
 
   function formatTime(iso: string) {
-    return new Date(iso).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+    return new Date(iso).toLocaleTimeString('es', {
+      timeZone: 'Europe/Madrid',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
   }
+
+  const today = new Date().toLocaleDateString('es', {
+    timeZone: 'Europe/Madrid',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short'
+  })
+
+  const isEmpty = data.timeEntries.length === 0 && data.absences.length === 0
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -74,7 +80,7 @@ export function TeamWidget() {
           EQUIPO HOY
         </span>
         <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>
-          {new Date().toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' })}
+          {today}
         </span>
       </div>
 
@@ -83,60 +89,59 @@ export function TeamWidget() {
           <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>
             Cargando...
           </div>
+        ) : isEmpty ? (
+          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>
+            Sin actividad hoy
+          </div>
         ) : (
           <>
-            {/* Clock-ins */}
+            {/* Alertas */}
+            {data.alertas.length > 0 && (
+              <div style={{ marginBottom: 4 }}>
+                <div style={{ padding: '2px 12px', color: '#facc15', fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.1em' }}>
+                  ALERTAS
+                </div>
+                {data.alertas.map((al, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 12px', borderBottom: '1px solid rgba(250,204,21,0.08)', background: 'rgba(250,204,21,0.04)' }}>
+                    <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, color: '#facc15' }}>{al.name}</span>
+                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#facc15' }}>
+                      {formatTime(al.clock_in)} · {al.tipo}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Fichajes */}
             {data.timeEntries.length > 0 && (
               <div style={{ marginBottom: 4 }}>
                 <div style={{ padding: '2px 12px', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.1em' }}>
                   FICHAJES
                 </div>
                 {data.timeEntries.map((te, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 12px', borderBottom: '1px solid rgba(200,168,64,0.05)' }}>
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 12px', borderBottom: '1px solid rgba(200,168,64,0.05)' }}>
                     <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, color: '#E8DCC8' }}>{te.name}</span>
-                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#A09070' }}>
-                      {formatTime(te.clock_in)}{te.clock_out ? ` → ${formatTime(te.clock_out)}` : ' →'}
+                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: te.activo ? '#4ade80' : '#A09070' }}>
+                      {formatTime(te.clock_in)}
+                      {te.activo ? ' → en curso' : te.clock_out ? ` → ${formatTime(te.clock_out)}` : ''}
                     </span>
                   </div>
                 ))}
               </div>
             )}
 
-            {/* Absences */}
+            {/* Ausencias */}
             {data.absences.length > 0 && (
-              <div style={{ marginBottom: 4 }}>
+              <div>
                 <div style={{ padding: '2px 12px', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.1em' }}>
                   AUSENCIAS
                 </div>
                 {data.absences.map((ab, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 12px', borderBottom: '1px solid rgba(200,168,64,0.05)' }}>
                     <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, color: '#E8DCC8' }}>{ab.name}</span>
-                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#fb923c' }}>{ab.absence_type}</span>
+                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#fb923c' }}>{ab.type}</span>
                   </div>
                 ))}
-              </div>
-            )}
-
-            {/* Tasks today */}
-            {data.tasks.length > 0 && (
-              <div>
-                <div style={{ padding: '2px 12px', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.1em' }}>
-                  TAREAS HOY
-                </div>
-                {data.tasks.map((t) => (
-                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', borderBottom: '1px solid rgba(200,168,64,0.05)' }}>
-                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: PRIORITY_COLOR[t.priority] || '#5A4A30', flexShrink: 0 }} />
-                    <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, color: '#E8DCC8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {t.title}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {data.timeEntries.length === 0 && data.absences.length === 0 && data.tasks.length === 0 && (
-              <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>
-                Sin actividad registrada
               </div>
             )}
           </>

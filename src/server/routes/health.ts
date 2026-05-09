@@ -5,7 +5,6 @@ export const healthRoutes = new Hono()
 const SERVICES = [
   { name: 'horario34', url: 'https://horario34.ignaciominguez.com/api/health' },
   { name: 'coreworks', url: 'https://coreworks.ignaciominguez.com/api/health' },
-  { name: 'vacaciones38', url: 'https://vacaciones38.ignaciominguez.com/api/health' },
   { name: 'n8n', url: 'https://n8n.ignaciominguez.com/healthz' },
   { name: 'waha', url: 'https://waha.ignaciominguez.com/api/health' },
   { name: 'ollama', url: `${process.env.OLLAMA_URL || 'http://172.17.0.1:11434'}/api/tags` }

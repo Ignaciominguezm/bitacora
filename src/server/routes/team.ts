@@ -47,5 +47,5 @@ teamRoutes.get('/today', async (c) => {
       tipo: te.clock_in_hour < 7 ? 'madrugada' : 'nocturno'
     }))
 
-  return c.json({ timeEntries: entries, absences: abs, alertas })
+  return c.json({ fichajes: entries, ausencias: abs, alertas })
 })

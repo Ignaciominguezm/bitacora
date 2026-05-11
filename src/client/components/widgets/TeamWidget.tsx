@@ -22,22 +22,23 @@ interface Alerta {
 }
 
 interface TeamData {
-  timeEntries: TimeEntry[]
-  absences: Absence[]
+  fichajes: TimeEntry[]
+  ausencias: Absence[]
   alertas: Alerta[]
 }
 
 export function TeamWidget() {
-  const [data, setData] = useState<TeamData>({ timeEntries: [], absences: [], alertas: [] })
+  const [data, setData] = useState<TeamData>({ fichajes: [], ausencias: [], alertas: [] })
   const [loading, setLoading] = useState(true)
 
   async function fetchTeam() {
     try {
       const res = await fetch('/api/team/today', { credentials: 'include' })
       const d: TeamData = await res.json()
+      console.log('[TeamWidget] /api/team/today response:', d)
       setData(d)
-    } catch {
-      // keep stale
+    } catch (err) {
+      console.error('[TeamWidget] fetch error:', err)
     } finally {
       setLoading(false)
     }
@@ -64,7 +65,7 @@ export function TeamWidget() {
     month: 'short'
   })
 
-  const isEmpty = data.timeEntries.length === 0 && data.absences.length === 0
+  const isEmpty = data.fichajes.length === 0 && data.ausencias.length === 0
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -114,12 +115,12 @@ export function TeamWidget() {
             )}
 
             {/* Fichajes */}
-            {data.timeEntries.length > 0 && (
+            {data.fichajes.length > 0 && (
               <div style={{ marginBottom: 4 }}>
                 <div style={{ padding: '2px 12px', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.1em' }}>
                   FICHAJES
                 </div>
-                {data.timeEntries.map((te, i) => (
+                {data.fichajes.map((te, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 12px', borderBottom: '1px solid rgba(200,168,64,0.05)' }}>
                     <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, color: '#E8DCC8' }}>{te.name}</span>
                     <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: te.activo ? '#4ade80' : '#A09070' }}>
@@ -132,12 +133,12 @@ export function TeamWidget() {
             )}
 
             {/* Ausencias */}
-            {data.absences.length > 0 && (
+            {data.ausencias.length > 0 && (
               <div>
                 <div style={{ padding: '2px 12px', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.1em' }}>
                   AUSENCIAS
                 </div>
-                {data.absences.map((ab, i) => (
+                {data.ausencias.map((ab, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 12px', borderBottom: '1px solid rgba(200,168,64,0.05)' }}>
                     <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, color: '#E8DCC8' }}>{ab.name}</span>
                     <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#fb923c' }}>{ab.type}</span>

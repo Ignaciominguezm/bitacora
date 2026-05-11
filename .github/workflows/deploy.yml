@@ -38,6 +38,8 @@ jobs:
           tags: ${{ env.IMAGE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            CACHE_BUST=${{ github.sha }}
 
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1

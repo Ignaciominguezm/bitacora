@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 
 interface TimeEntry {
   name: string
+  entry_type: string | null
   clock_in: string
   clock_out: string | null
   activo: boolean

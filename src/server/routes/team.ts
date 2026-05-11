@@ -8,15 +8,19 @@ teamRoutes.get('/today', async (c) => {
     horarioDb
       ? horarioDb.query(
           `SELECT u.name,
-                  te.clock_in,
-                  te.clock_out,
-                  te.clock_out IS NULL AS activo,
-                  EXTRACT(HOUR FROM (te.clock_in AT TIME ZONE 'Europe/Madrid')) AS clock_in_hour
+                  te."entryType" AS entry_type,
+                  to_timestamp(te."clockIn"::bigint / 1000) AS clock_in,
+                  CASE WHEN te.status = 'active'
+                       THEN NULL
+                       ELSE to_timestamp(te."clockOut"::bigint / 1000)
+                  END AS clock_out,
+                  te.status = 'active' AS activo,
+                  EXTRACT(HOUR FROM (to_timestamp(te."clockIn"::bigint / 1000) AT TIME ZONE 'Europe/Madrid')) AS clock_in_hour
            FROM "timeEntries" te
            JOIN users u ON u.id = te."userId"
-           WHERE (te.clock_in AT TIME ZONE 'Europe/Madrid')::date =
+           WHERE DATE(to_timestamp(te."clockIn"::bigint / 1000) AT TIME ZONE 'Europe/Madrid') =
                  (NOW() AT TIME ZONE 'Europe/Madrid')::date
-           ORDER BY te.clock_in`
+           ORDER BY te."clockIn"`
         )
       : Promise.resolve({ rows: [] }),
 

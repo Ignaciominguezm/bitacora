@@ -49,7 +49,7 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
 
     const es = new EventSource(`/api/unriar/stream?sessionId=${UNRIAR_SESSION_ID}`)
 
-    es.addEventListener('response', (e: MessageEvent) => {
+    es.addEventListener('message', (e: MessageEvent) => {
       const payload = JSON.parse(e.data) as { response: string; jobId?: string }
 
       if (pendingTimeoutRef.current) {
@@ -166,7 +166,7 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
       }, 60_000)
 
       try {
-        await fetch('/api/unriar/message', {
+        await fetch('/api/chat/unriar', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',

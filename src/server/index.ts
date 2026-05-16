@@ -11,6 +11,7 @@ import { chatRoutes } from './routes/chat.js'
 import { whatsappRoutes } from './routes/whatsapp.js'
 import { crmRoutes } from './routes/crm.js'
 import { voiceRoutes } from './routes/voice.js'
+import { unriarRoutes } from './routes/unriar.js'
 import { authMiddleware } from './middleware/auth.js'
 
 const app = new Hono()
@@ -22,6 +23,8 @@ app.use('/api/*', cors({
 
 // Auth routes (no middleware)
 app.route('/api/auth', authRoutes)
+// Unriar routes — mixed auth (each route handles its own auth)
+app.route('/api/unriar', unriarRoutes)
 
 // Protected API routes
 const api = new Hono()

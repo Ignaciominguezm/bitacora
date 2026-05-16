@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown'
 interface Message {
   role: 'user' | 'assistant'
   content: string
+  pending?: boolean
 }
 
 interface Session {
@@ -19,6 +20,8 @@ interface Props {
   label: string
 }
 
+const UNRIAR_SESSION_ID = 'bitacora-ignacio'
+
 export function ChatWidget({ agent, accentColor, label }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -29,12 +32,58 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const pendingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const sessionIdRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    sessionIdRef.current = sessionId
+  }, [sessionId])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // On mount: restore the most recent session for this agent, or create one
+  // SSE connection for Unriar async responses
+  useEffect(() => {
+    if (agent !== 'unriar') return
+
+    const es = new EventSource(`/api/unriar/stream?sessionId=${UNRIAR_SESSION_ID}`)
+
+    es.addEventListener('response', (e: MessageEvent) => {
+      const payload = JSON.parse(e.data) as { response: string; jobId?: string }
+
+      if (pendingTimeoutRef.current) {
+        clearTimeout(pendingTimeoutRef.current)
+        pendingTimeoutRef.current = null
+      }
+
+      setMessages((prev) => {
+        const updated = prev.map((m) =>
+          m.pending ? { role: m.role as 'assistant', content: payload.response, pending: false } : m
+        )
+        const id = sessionIdRef.current
+        if (id) {
+          const cleaned = updated.filter((m) => !m.pending)
+          const title = cleaned.find((m) => m.role === 'user')?.content.slice(0, 60) || 'Conversación'
+          fetch(`/api/chat/session/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ messages: cleaned, title })
+          }).catch(() => {})
+        }
+        return updated
+      })
+
+      setStreaming(false)
+    })
+
+    return () => {
+      es.close()
+    }
+  }, [agent])
+
+  // On mount: restore or create session
   useEffect(() => {
     async function restoreSession() {
       try {
@@ -47,7 +96,7 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
           const sess: { session_id: string; messages: Message[] } = await sessRes.json()
           setSessionId(sess.session_id)
           if (Array.isArray(sess.messages) && sess.messages.length > 0) {
-            setMessages(sess.messages)
+            setMessages(sess.messages.filter((m) => !m.pending))
           }
         } else {
           const newRes = await fetch('/api/chat/session', {
@@ -68,7 +117,6 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
 
   async function getOrCreateSession(): Promise<string> {
     if (sessionId) return sessionId
-
     const res = await fetch('/api/chat/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -101,12 +149,52 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
     setMessages(newMessages)
     setStreaming(true)
 
+    if (agent === 'unriar') {
+      const pendingMsg: Message = { role: 'assistant', content: 'Pensando...', pending: true }
+      setMessages([...newMessages, pendingMsg])
+
+      pendingTimeoutRef.current = setTimeout(() => {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.pending
+              ? { role: m.role as 'assistant', content: 'Sin respuesta. Inténtalo de nuevo.', pending: false }
+              : m
+          )
+        )
+        setStreaming(false)
+        pendingTimeoutRef.current = null
+      }, 60_000)
+
+      try {
+        await fetch('/api/unriar/message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ message: text, sessionId: UNRIAR_SESSION_ID })
+        })
+      } catch {
+        if (pendingTimeoutRef.current) {
+          clearTimeout(pendingTimeoutRef.current)
+          pendingTimeoutRef.current = null
+        }
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.pending
+              ? { role: m.role as 'assistant', content: 'Error al contactar con el agente.', pending: false }
+              : m
+          )
+        )
+        setStreaming(false)
+      }
+      return
+    }
+
+    // Kinnareth: direct SSE streaming
     const assistantMsg: Message = { role: 'assistant', content: '' }
     setMessages([...newMessages, assistantMsg])
 
     try {
       const id = await getOrCreateSession()
-
       abortRef.current = new AbortController()
       const res = await fetch(`/api/chat/${agent}`, {
         method: 'POST',
@@ -198,7 +286,7 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
           const { text } = await res.json() as { text: string }
           if (text) setInput((prev) => (prev ? `${prev} ${text}` : text))
         } catch {
-          // Whisper not configured, ignore
+          // Whisper not configured
         }
       }
 
@@ -218,7 +306,14 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
 
   async function clearSession() {
     if (streaming) {
-      abortRef.current?.abort()
+      if (agent === 'unriar') {
+        if (pendingTimeoutRef.current) {
+          clearTimeout(pendingTimeoutRef.current)
+          pendingTimeoutRef.current = null
+        }
+      } else {
+        abortRef.current?.abort()
+      }
       setStreaming(false)
     }
     setMessages([])
@@ -320,19 +415,22 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
                 border: `1px solid ${msg.role === 'user' ? accentColor + '35' : 'rgba(200,168,64,0.1)'}`,
                 fontFamily: 'DM Sans, sans-serif',
                 fontSize: 13,
-                color: '#E8DCC8',
+                color: msg.pending ? '#5A4A30' : '#E8DCC8',
                 lineHeight: 1.5,
-                wordBreak: 'break-word'
+                wordBreak: 'break-word',
+                fontStyle: msg.pending ? 'italic' : 'normal'
               }}
             >
-              {msg.role === 'user' ? (
+              {msg.pending ? (
+                <span>{msg.content}</span>
+              ) : msg.role === 'user' ? (
                 <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
               ) : (
                 <div className="prose prose-invert max-w-none">
                   <ReactMarkdown>{msg.content}</ReactMarkdown>
                 </div>
               )}
-              {streaming && i === messages.length - 1 && msg.role === 'assistant' && (
+              {streaming && i === messages.length - 1 && msg.role === 'assistant' && !msg.pending && (
                 <span className="cursor-blink" style={{ color: accentColor }}>▌</span>
               )}
             </div>

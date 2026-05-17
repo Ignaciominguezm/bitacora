@@ -28,7 +28,10 @@ app.route('/api/unriar', unriarRoutes)
 
 // Protected API routes
 const api = new Hono()
-api.use('/*', authMiddleware)
+api.use('/*', async (c, next) => {
+  if (c.req.path === '/api/chat/unriar/callback') return next()
+  return authMiddleware(c, next)
+})
 api.route('/health', healthRoutes)
 api.route('/team', teamRoutes)
 api.route('/tasks', tasksRoutes)

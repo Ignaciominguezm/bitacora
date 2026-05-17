@@ -47,7 +47,7 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
   useEffect(() => {
     if (agent !== 'unriar') return
 
-    const es = new EventSource(`/api/unriar/stream?sessionId=${UNRIAR_SESSION_ID}`)
+    const es = new EventSource(`/api/chat/unriar/stream?sessionId=${UNRIAR_SESSION_ID}`)
 
     es.addEventListener('message', (e: MessageEvent) => {
       const payload = JSON.parse(e.data) as { response: string; jobId?: string }

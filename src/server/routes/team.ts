@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { horarioDb, vacacionesDb } from '../db/index.js'
+import { horarioDb, vacacionesDb, tareasDb } from '../db/index.js'
 
 export const teamRoutes = new Hono()
 
@@ -48,4 +48,30 @@ teamRoutes.get('/today', async (c) => {
     }))
 
   return c.json({ fichajes: entries, ausencias: abs, alertas })
+})
+
+teamRoutes.get('/current-tasks', async (c) => {
+  if (!tareasDb) return c.json([])
+
+  try {
+    const result = await tareasDb.query(
+      `SELECT DISTINCT ON (u.id)
+              u.name AS employee_name,
+              t.title AS task_title,
+              t.priority,
+              c.name AS client_name,
+              t.updated_at
+       FROM tasks t
+       JOIN users u ON u.id = t.assignee_id
+       LEFT JOIN clients c ON c.id = t.client_id
+       WHERE LOWER(t.status) NOT IN (
+         'done','completed','cancelled','closed','archived',
+         'cerrada','finalizada','completada','cancelada','terminada','archivada'
+       )
+       ORDER BY u.id, t.updated_at DESC`
+    )
+    return c.json(result.rows)
+  } catch {
+    return c.json([])
+  }
 })

@@ -123,9 +123,16 @@ export function TeamWidget() {
                 {data.fichajes.map((te, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 12px', borderBottom: '1px solid rgba(200,168,64,0.05)' }}>
                     <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, color: '#E8DCC8' }}>{te.name}</span>
-                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: te.activo ? '#4ade80' : '#A09070' }}>
-                      {formatTime(te.clock_in)}
-                      {te.activo ? ' → en curso' : te.clock_out ? ` → ${formatTime(te.clock_out)}` : ''}
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {te.entry_type && (
+                        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#7A6A50', background: 'rgba(200,168,64,0.08)', border: '1px solid rgba(200,168,64,0.15)', padding: '1px 5px', letterSpacing: '0.04em' }}>
+                          {te.entry_type === 'TRABAJO' ? 'Laboral' : te.entry_type === 'FORMACION' ? 'Formación' : te.entry_type}
+                        </span>
+                      )}
+                      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: te.activo ? '#4ade80' : '#A09070' }}>
+                        {formatTime(te.clock_in)}
+                        {te.activo ? ' → en curso' : te.clock_out ? ` → ${formatTime(te.clock_out)}` : ''}
+                      </span>
                     </span>
                   </div>
                 ))}

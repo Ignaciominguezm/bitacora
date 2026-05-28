@@ -40,11 +40,11 @@ teamRoutes.get('/today', async (c) => {
   const abs = absences.status === 'fulfilled' ? absences.value.rows : []
 
   const alertas = entries
-    .filter((te: { clock_in_hour: number }) => te.clock_in_hour < 7 || te.clock_in_hour >= 20)
+    .filter((te: { clock_in_hour: number }) => te.clock_in_hour < 6 || te.clock_in_hour >= 20)
     .map((te: { name: string; clock_in: string; clock_in_hour: number }) => ({
       name: te.name,
       clock_in: te.clock_in,
-      tipo: te.clock_in_hour < 7 ? 'madrugada' : 'nocturno'
+      tipo: te.clock_in_hour < 6 ? 'madrugada' : 'nocturno'
     }))
 
   return c.json({ fichajes: entries, ausencias: abs, alertas })

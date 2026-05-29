@@ -3,10 +3,11 @@ WORKDIR /app
 RUN npm install -g pnpm
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
-ARG CACHE_BUST=unknown
-RUN echo "Cache bust: $CACHE_BUST"
 COPY . .
-RUN pnpm build
+ARG CACHE_BUST=unknown
+RUN echo "Building commit: $CACHE_BUST"
+RUN pnpm build:server
+RUN pnpm build:client
 
 FROM node:20-alpine AS runner
 WORKDIR /app

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Sidebar } from './Sidebar'
 import { DashboardPage } from '../../pages/DashboardPage'
 import { TeamPage } from '../../pages/TeamPage'
+import { TareasPage } from '../../pages/TareasPage'
 import { PlaceholderPage } from '../../pages/PlaceholderPage'
 
 type Page = 'dashboard' | 'conversations' | 'crm' | 'tasks' | 'team' | 'system'
@@ -25,7 +26,7 @@ export function Layout({ onLogout }: Props) {
         {page === 'dashboard' && <DashboardPage />}
         {page === 'conversations' && <PlaceholderPage title="Conversaciones" icon="◈" />}
         {page === 'crm' && <PlaceholderPage title="CRM" icon="◎" />}
-        {page === 'tasks' && <PlaceholderPage title="Tareas" icon="◻" />}
+        {page === 'tasks' && <TareasPage />}
         {page === 'team' && <TeamPage />}
         {page === 'system' && <PlaceholderPage title="Sistema" icon="⊙" />}
       </main>

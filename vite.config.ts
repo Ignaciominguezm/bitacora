@@ -5,12 +5,13 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   root: 'src/client',
+  publicDir: '../../public',
   plugins: [
     tailwindcss(),
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['Favicon-Bitacora.png', 'icons/*.png', 'icons/*.svg'],
+      includeAssets: ['favicon.png', 'icons/*.png', 'icons/*.svg'],
       manifest: {
         name: 'Bitácora — IMM CORE SYSTEM',
         short_name: 'Bitácora',
@@ -22,12 +23,12 @@ export default defineConfig({
         scope: '/',
         icons: [
           {
-            src: '/Favicon-Bitacora.png',
+            src: '/favicon.png',
             sizes: '192x192',
             type: 'image/png'
           },
           {
-            src: '/Favicon-Bitacora.png',
+            src: '/favicon.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable'

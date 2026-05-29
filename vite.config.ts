@@ -10,7 +10,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'icons/*.png', 'icons/*.svg'],
+      includeAssets: ['Favicon-Bitacora.png', 'icons/*.png', 'icons/*.svg'],
       manifest: {
         name: 'Bitácora — IMM CORE SYSTEM',
         short_name: 'Bitácora',
@@ -22,13 +22,12 @@ export default defineConfig({
         scope: '/',
         icons: [
           {
-            src: '/icons/icon-192.png',
+            src: '/Favicon-Bitacora.png',
             sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any maskable'
+            type: 'image/png'
           },
           {
-            src: '/icons/icon-512.png',
+            src: '/Favicon-Bitacora.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable'

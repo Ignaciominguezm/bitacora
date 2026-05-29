@@ -67,6 +67,8 @@ export function LoginPage({ onLogin }: Props) {
           width: 320
         }}
       >
+        <img src="/favicon.png" width="64" height="64" alt="Bitácora" style={{ display: 'block' }} />
+
         <h1
           style={{
             fontFamily: 'Cinzel, serif',

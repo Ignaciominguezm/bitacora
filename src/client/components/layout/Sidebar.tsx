@@ -60,21 +60,8 @@ export function Sidebar({ currentPage, onNavigate, onLogout }: Props) {
       }}
     >
       {/* Logo mark */}
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom: 16,
-          color: '#C8A840',
-          fontFamily: 'Cinzel, serif',
-          fontSize: 18,
-          fontWeight: 700
-        }}
-      >
-        B
+      <div style={{ marginBottom: 16 }}>
+        <img src="/favicon.png" width="32" height="32" alt="Bitácora" style={{ display: 'block' }} />
       </div>
 
       <div

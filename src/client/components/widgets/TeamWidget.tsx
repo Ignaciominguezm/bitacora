@@ -27,16 +27,33 @@ interface TeamData {
   alertas: Alerta[]
 }
 
+interface CurrentTask {
+  employee_name: string
+  task_title: string
+  priority: string | null
+  client_name: string | null
+  updated_at: string
+}
+
 export function TeamWidget() {
   const [data, setData] = useState<TeamData>({ fichajes: [], ausencias: [], alertas: [] })
+  const [tasks, setTasks] = useState<Map<string, CurrentTask>>(new Map())
   const [loading, setLoading] = useState(true)
 
   async function fetchTeam() {
     try {
-      const res = await fetch('/api/team/today', { credentials: 'include' })
-      const d: TeamData = await res.json()
-      console.log('[TeamWidget] /api/team/today response:', d)
-      setData(d)
+      const [todayRes, tasksRes] = await Promise.allSettled([
+        fetch('/api/team/today', { credentials: 'include' }).then((r) => r.json()),
+        fetch('/api/team/current-tasks', { credentials: 'include' }).then((r) => r.json())
+      ])
+
+      if (todayRes.status === 'fulfilled') {
+        setData(todayRes.value as TeamData)
+      }
+      if (tasksRes.status === 'fulfilled') {
+        const taskList = tasksRes.value as CurrentTask[]
+        setTasks(new Map(taskList.map((t) => [t.employee_name, t])))
+      }
     } catch (err) {
       console.error('[TeamWidget] fetch error:', err)
     } finally {
@@ -120,22 +137,38 @@ export function TeamWidget() {
                 <div style={{ padding: '2px 12px', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.1em' }}>
                   FICHAJES
                 </div>
-                {data.fichajes.map((te, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 12px', borderBottom: '1px solid rgba(200,168,64,0.05)' }}>
-                    <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, color: '#E8DCC8' }}>{te.name}</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {te.entry_type && (
-                        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#7A6A50', background: 'rgba(200,168,64,0.08)', border: '1px solid rgba(200,168,64,0.15)', padding: '1px 5px', letterSpacing: '0.04em' }}>
-                          {te.entry_type === 'TRABAJO' ? 'Laboral' : te.entry_type === 'FORMACION' ? 'Formación' : te.entry_type}
+                {data.fichajes.map((te, i) => {
+                  const task = tasks.get(te.name)
+                  return (
+                    <div key={i} style={{ padding: '5px 12px', borderBottom: '1px solid rgba(200,168,64,0.05)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, color: '#E8DCC8' }}>{te.name}</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {te.entry_type && (
+                            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#7A6A50', background: 'rgba(200,168,64,0.08)', border: '1px solid rgba(200,168,64,0.15)', padding: '1px 5px', letterSpacing: '0.04em' }}>
+                              {te.entry_type === 'TRABAJO' ? 'Laboral' : te.entry_type === 'FORMACION' ? 'Formación' : te.entry_type}
+                            </span>
+                          )}
+                          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: te.activo ? '#4ade80' : '#A09070' }}>
+                            {formatTime(te.clock_in)}
+                            {te.activo ? ' → en curso' : te.clock_out ? ` → ${formatTime(te.clock_out)}` : ''}
+                          </span>
                         </span>
+                      </div>
+                      {task && (
+                        <div style={{ marginTop: 2, display: 'flex', alignItems: 'baseline', gap: 6, paddingLeft: 2 }}>
+                          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30', flexShrink: 0 }}>↳</span>
+                          <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 11, color: '#7A6A50', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {task.task_title}
+                            {task.client_name && (
+                              <span style={{ color: '#4A3A20', marginLeft: 5 }}>· {task.client_name}</span>
+                            )}
+                          </span>
+                        </div>
                       )}
-                      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: te.activo ? '#4ade80' : '#A09070' }}>
-                        {formatTime(te.clock_in)}
-                        {te.activo ? ' → en curso' : te.clock_out ? ` → ${formatTime(te.clock_out)}` : ''}
-                      </span>
-                    </span>
-                  </div>
-                ))}
+                    </div>
+                  )
+                })}
               </div>
             )}
 

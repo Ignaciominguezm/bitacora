@@ -1,56 +1,33 @@
 import { useState, useEffect } from 'react'
 
 interface Conversation {
-  id: number
   session_id: string
-  display_name?: string
-  last_message?: unknown
-  updated_at?: string
-}
-
-function safeString(value: unknown): string {
-  if (typeof value === 'string') return value
-  if (value === null || value === undefined) return ''
-  if (typeof value === 'object') {
-    const obj = value as Record<string, unknown>
-    if ('content' in obj) {
-      const c = obj.content
-      if (typeof c === 'string') return c
-      if (Array.isArray(c)) return c.map((b) => (b as Record<string, unknown>).text ?? '').join(' ')
-    }
-    return JSON.stringify(value)
-  }
-  return String(value)
+  phone: string
+  full_name: string | null
+  last_message: string
+  last_type: 'human' | 'ai'
+  message_count: number
+  last_id: number
 }
 
 export function WhatsAppWidget() {
-  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [convs, setConvs] = useState<Conversation[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetch('/api/whatsapp/recent', { credentials: 'include' })
       .then((r) => r.json())
-      .then((d: Conversation[]) => setConversations(d))
+      .then((data: { conversations?: Conversation[] }) => setConvs(data.conversations || []))
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 
-  function getDisplayName(conv: Conversation): string {
-    return safeString(conv.display_name || conv.session_id || `Conv. ${conv.id}`)
+  function displayName(conv: Conversation): string {
+    return conv.full_name || conv.phone
   }
 
-  function getLastMessage(conv: Conversation): string {
-    const msg = safeString(conv.last_message)
-    return msg.length > 60 ? msg.slice(0, 60) + '…' : msg
-  }
-
-  function getTimestamp(conv: Conversation): string {
-    if (!conv.updated_at) return ''
-    try {
-      return new Date(conv.updated_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
-    } catch {
-      return ''
-    }
+  function truncate(text: string): string {
+    return text.length > 80 ? text.slice(0, 80) + '…' : text
   }
 
   return (
@@ -68,7 +45,7 @@ export function WhatsAppWidget() {
           WHATSAPP — UnrIA
         </span>
         <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>
-          {conversations.length} recientes
+          {convs.length} recientes
         </span>
       </div>
 
@@ -77,14 +54,14 @@ export function WhatsAppWidget() {
           <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>
             Cargando conversaciones...
           </div>
-        ) : conversations.length === 0 ? (
+        ) : convs.length === 0 ? (
           <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>
             Sin conversaciones recientes
           </div>
         ) : (
-          conversations.map((conv) => (
+          convs.map((conv) => (
             <div
-              key={conv.id}
+              key={conv.session_id}
               style={{
                 padding: '7px 12px',
                 borderBottom: '1px solid rgba(200,168,64,0.06)',
@@ -99,14 +76,21 @@ export function WhatsAppWidget() {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, color: '#E8DCC8', fontWeight: 500 }}>
-                  {getDisplayName(conv)}
+                  {displayName(conv)}
                 </span>
-                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>
-                  {getTimestamp(conv)}
+                <span
+                  style={{
+                    fontFamily: 'JetBrains Mono, monospace',
+                    fontSize: 9,
+                    color: conv.last_type === 'ai' ? '#C8A840' : '#5A4A30',
+                    letterSpacing: '0.06em'
+                  }}
+                >
+                  {conv.last_type === 'ai' ? 'UnrIA' : 'user'}
                 </span>
               </div>
               <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 11, color: '#A09070' }}>
-                {getLastMessage(conv)}
+                {truncate(conv.last_message)}
               </span>
             </div>
           ))

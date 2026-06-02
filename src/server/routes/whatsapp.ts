@@ -1,74 +1,86 @@
 import { Hono } from 'hono'
-import { n8nDb } from '../db/index.js'
+import { n8nDb, immDb } from '../db/index.js'
 
 export const whatsappRoutes = new Hono()
 
-type LangChainContentBlock = { type: string; text?: string }
-type LangChainMessage = {
-  type?: string
-  content?: string | LangChainContentBlock[]
-  [key: string]: unknown
+interface ConversationRow {
+  session_id: string
+  last_id: string
+  message_count: string
+  last_message: string | null
+  last_type: string | null
 }
 
-function extractText(value: unknown): string {
-  if (typeof value === 'string') return value
-
-  if (Array.isArray(value)) {
-    // Array of LangChain messages — take the last one
-    if (value.length === 0) return ''
-    return extractText(value[value.length - 1])
-  }
-
-  if (value !== null && typeof value === 'object') {
-    const msg = value as LangChainMessage
-    if ('content' in msg) {
-      const content = msg.content
-      if (typeof content === 'string') return content
-      if (Array.isArray(content)) {
-        const textBlock = content.find((b) => b.type === 'text')
-        return textBlock?.text ?? content.map((b) => b.text ?? '').join(' ')
-      }
-    }
-  }
-
-  return ''
-}
-
-function transformRow(row: Record<string, unknown>) {
-  // Identify whichever column holds the LangChain messages
-  const raw = row.messages ?? row.message ?? row.last_message ?? null
-  let lastMessage = ''
-
-  if (raw !== null) {
-    let parsed: unknown = raw
-    if (typeof raw === 'string') {
-      try { parsed = JSON.parse(raw) } catch { parsed = raw }
-    }
-    lastMessage = extractText(parsed).trim().slice(0, 200)
-  }
-
-  return {
-    id: row.id,
-    session_id: row.session_id,
-    display_name: (row.display_name as string | null) ?? (row.session_id as string) ?? String(row.id),
-    last_message: lastMessage,
-    updated_at: row.updated_at ?? row.created_at ?? row.timestamp ?? null,
-  }
+interface ContactRow {
+  full_name: string
+  phone: string
 }
 
 whatsappRoutes.get('/recent', async (c) => {
-  if (!n8nDb) return c.json([])
+  if (!n8nDb) return c.json({ conversations: [] })
 
   try {
-    const result = await n8nDb.query(
-      `SELECT DISTINCT ON (session_id) *
-       FROM unria_memory
-       ORDER BY session_id, id DESC
-       LIMIT 20`
-    )
-    return c.json(result.rows.map(transformRow))
-  } catch {
-    return c.json([])
+    const result = await n8nDb.query<ConversationRow>(`
+      SELECT
+        session_id,
+        MAX(id) as last_id,
+        COUNT(*) as message_count,
+        (SELECT message->>'content'
+         FROM unria_memory m2
+         WHERE m2.session_id = m1.session_id
+         ORDER BY id DESC LIMIT 1) as last_message,
+        (SELECT message->>'type'
+         FROM unria_memory m2
+         WHERE m2.session_id = m1.session_id
+         ORDER BY id DESC LIMIT 1) as last_type
+      FROM unria_memory m1
+      WHERE session_id NOT IN ('status@broadcast')
+      GROUP BY session_id
+      ORDER BY last_id DESC
+      LIMIT 20
+    `)
+
+    const rows = result.rows
+
+    // Build a last-9-digits → contact name map from imm_db
+    const contactMap = new Map<string, string>()
+    if (immDb && rows.length > 0) {
+      const last9List = rows.map((r) => r.session_id.replace('@c.us', '').slice(-9))
+      try {
+        const contactResult = await immDb.query<ContactRow>(
+          `SELECT full_name, phone
+           FROM core_contacts
+           WHERE phone IS NOT NULL
+             AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 9) = ANY($1::text[])`,
+          [last9List]
+        )
+        for (const contact of contactResult.rows) {
+          const last9 = contact.phone.replace(/[^0-9]/g, '').slice(-9)
+          contactMap.set(last9, contact.full_name)
+        }
+      } catch (err) {
+        console.error('[whatsapp/recent] contact lookup error:', err)
+      }
+    }
+
+    const conversations = rows.map((r) => {
+      const phone = r.session_id.replace('@c.us', '')
+      const last9 = phone.slice(-9)
+      return {
+        session_id: r.session_id,
+        phone,
+        full_name: contactMap.get(last9) ?? null,
+        last_message: r.last_message ?? '',
+        last_type: r.last_type ?? 'human',
+        message_count: parseInt(r.message_count, 10),
+        last_id: parseInt(r.last_id, 10)
+      }
+    })
+
+    return c.json({ conversations })
+  } catch (err) {
+    console.error('[whatsapp/recent]', err)
+    return c.json({ conversations: [] })
   }
 })
 

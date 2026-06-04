@@ -6,6 +6,19 @@ interface ServiceStatus {
   latency: number
 }
 
+interface ServerSummary {
+  name: string
+  url: string
+  status: 'ok' | 'error'
+  disk?: { percent: number }
+}
+
+interface HealthData {
+  overall: 'up' | 'degraded' | 'down'
+  services: ServiceStatus[]
+  servers: ServerSummary[]
+}
+
 const SERVICE_LABELS: Record<string, string> = {
   horario34: 'Horario',
   coreworks: 'Coreworks',
@@ -29,15 +42,15 @@ const STATUS_LABEL = {
 }
 
 export function EcosystemWidget() {
-  const [services, setServices] = useState<ServiceStatus[]>([])
+  const [health, setHealth] = useState<HealthData | null>(null)
   const [loading, setLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
   async function fetchHealth() {
     try {
       const res = await fetch('/api/health', { credentials: 'include' })
-      const data: ServiceStatus[] = await res.json()
-      setServices(data)
+      const data: HealthData = await res.json()
+      setHealth(data)
       setLastUpdated(new Date())
     } catch {
       // Keep stale data
@@ -52,8 +65,10 @@ export function EcosystemWidget() {
     return () => clearInterval(interval)
   }, [])
 
-  const allUp = services.every((s) => s.status === 'up')
+  const services = health?.services ?? []
+  const servers = health?.servers ?? []
   const anyDown = services.some((s) => s.status === 'down')
+  const allUp = services.every((s) => s.status === 'up')
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -86,56 +101,88 @@ export function EcosystemWidget() {
         </div>
       </div>
 
-      {/* Services list */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
         {loading ? (
           <div style={{ padding: '12px', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>
             Comprobando servicios...
           </div>
         ) : (
-          services.map((svc) => (
-            <div
-              key={svc.name}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '5px 12px',
-                borderBottom: '1px solid rgba(200,168,64,0.06)'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: '50%',
-                    background: STATUS_COLOR[svc.status],
-                    flexShrink: 0
-                  }}
-                />
-                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#E8DCC8' }}>
-                  {SERVICE_LABELS[svc.name] ?? svc.name}
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span
-                  style={{
-                    fontFamily: 'JetBrains Mono, monospace',
-                    fontSize: 10,
-                    color: STATUS_COLOR[svc.status]
-                  }}
-                >
-                  {STATUS_LABEL[svc.status]}
-                </span>
-                {svc.status === 'up' && (
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>
-                    {svc.latency}ms
+          <>
+            {/* Services list */}
+            {services.map((svc) => (
+              <div
+                key={svc.name}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '5px 12px',
+                  borderBottom: '1px solid rgba(200,168,64,0.06)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_COLOR[svc.status], flexShrink: 0 }} />
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#E8DCC8' }}>
+                    {SERVICE_LABELS[svc.name] ?? svc.name}
                   </span>
-                )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: STATUS_COLOR[svc.status] }}>
+                    {STATUS_LABEL[svc.status]}
+                  </span>
+                  {svc.status === 'up' && (
+                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>
+                      {svc.latency}ms
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          ))
+            ))}
+
+            {/* VPS server summary */}
+            {servers.length > 0 && (
+              <>
+                <div style={{ padding: '6px 12px 2px', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.1em' }}>
+                  SERVIDORES
+                </div>
+                {servers.map((srv) => {
+                  const diskPct = srv.disk?.percent ?? null
+                  const diskAlert = diskPct !== null && diskPct > 80
+                  return (
+                    <div
+                      key={srv.url}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '4px 12px',
+                        borderBottom: '1px solid rgba(200,168,64,0.06)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: srv.status === 'ok' ? '#4ade80' : '#f87171', flexShrink: 0 }} />
+                        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#A09070' }}>
+                          {srv.name}
+                        </span>
+                      </div>
+                      {diskPct !== null && (
+                        <span
+                          style={{
+                            fontFamily: 'JetBrains Mono, monospace',
+                            fontSize: 10,
+                            color: diskAlert ? '#f87171' : '#5A4A30',
+                            fontWeight: diskAlert ? 600 : 400
+                          }}
+                        >
+                          disk {diskPct.toFixed(0)}%
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </>
+            )}
+          </>
         )}
       </div>
     </div>

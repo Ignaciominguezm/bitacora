@@ -4,6 +4,7 @@ import { DashboardPage } from '../../pages/DashboardPage'
 import { TeamPage } from '../../pages/TeamPage'
 import { TareasPage } from '../../pages/TareasPage'
 import { PlaceholderPage } from '../../pages/PlaceholderPage'
+import { SistemaPage } from '../../pages/SistemaPage'
 
 type Page = 'dashboard' | 'conversations' | 'crm' | 'tasks' | 'team' | 'system'
 
@@ -28,7 +29,7 @@ export function Layout({ onLogout }: Props) {
         {page === 'crm' && <PlaceholderPage title="CRM" icon="◎" />}
         {page === 'tasks' && <TareasPage />}
         {page === 'team' && <TeamPage />}
-        {page === 'system' && <PlaceholderPage title="Sistema" icon="⊙" />}
+        {page === 'system' && <SistemaPage />}
       </main>
     </div>
   )

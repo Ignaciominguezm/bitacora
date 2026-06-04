@@ -17,7 +17,7 @@ const SERVICES = [
 ]
 
 const VPS_SERVERS = [
-  { name: 'Ecosistema Ignacio', url: 'http://51.75.23.146:9100' },
+  { name: 'Ecosistema Ignacio', url: 'http://172.17.0.1:9100' },
   { name: 'IMM CORE SYSTEM SL', url: 'http://51.77.223.83:9100' },
   { name: 'Dipinsur', url: 'http://51.77.150.95:9100' },
   { name: 'Nati Paladini', url: 'http://152.228.216.197:9100' }

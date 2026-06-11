@@ -6,9 +6,14 @@ export const chatRoutes = new Hono()
 
 chatRoutes.get('/history', async (c) => {
   if (!bitacoraDb) return c.json([])
+  const agent = c.req.query('agent')
   const result = await bitacoraDb.query(
-    `SELECT id, agent, session_id, title, created_at, updated_at
-     FROM chat_history ORDER BY updated_at DESC LIMIT 50`
+    agent
+      ? `SELECT id, agent, session_id, title, created_at, updated_at
+         FROM chat_history WHERE agent = $1 ORDER BY updated_at DESC LIMIT 100`
+      : `SELECT id, agent, session_id, title, created_at, updated_at
+         FROM chat_history ORDER BY updated_at DESC LIMIT 50`,
+    agent ? [agent] : []
   )
   return c.json(result.rows)
 })

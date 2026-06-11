@@ -84,6 +84,43 @@ whatsappRoutes.get('/recent', async (c) => {
   }
 })
 
+interface MessageRow {
+  id: number
+  message: { type?: string; content?: unknown; tool_calls?: unknown }
+}
+
+function extractContent(raw: unknown): string {
+  if (typeof raw === 'string') return raw
+  if (Array.isArray(raw)) {
+    return raw
+      .map((b) => (typeof b === 'object' && b !== null && 'text' in b ? (b as Record<string, unknown>).text : ''))
+      .filter(Boolean)
+      .join(' ')
+  }
+  return ''
+}
+
+whatsappRoutes.get('/conversation/:sessionId', async (c) => {
+  if (!n8nDb) return c.json({ messages: [] })
+  const sessionId = c.req.param('sessionId')
+  try {
+    const result = await n8nDb.query<MessageRow>(
+      `SELECT id, message FROM unria_memory WHERE session_id = $1 ORDER BY id ASC`,
+      [sessionId]
+    )
+    const messages = result.rows.map((row) => ({
+      id: row.message?.id ?? row.id,
+      type: row.message?.type ?? 'human',
+      content: extractContent(row.message?.content),
+      tool_calls: row.message?.tool_calls ?? undefined
+    }))
+    return c.json({ messages })
+  } catch (err) {
+    console.error('[whatsapp/conversation]', err)
+    return c.json({ messages: [] })
+  }
+})
+
 whatsappRoutes.post('/send', async (c) => {
   const { chatId, text, session } = await c.req.json<{
     chatId: string

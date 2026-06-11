@@ -5,6 +5,7 @@ import { TeamPage } from '../../pages/TeamPage'
 import { TareasPage } from '../../pages/TareasPage'
 import { PlaceholderPage } from '../../pages/PlaceholderPage'
 import { SistemaPage } from '../../pages/SistemaPage'
+import { ConversacionesPage } from '../../pages/ConversacionesPage'
 
 type Page = 'dashboard' | 'conversations' | 'crm' | 'tasks' | 'team' | 'system'
 
@@ -25,7 +26,7 @@ export function Layout({ onLogout }: Props) {
       <Sidebar currentPage={page} onNavigate={setPage} onLogout={handleLogout} />
       <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {page === 'dashboard' && <DashboardPage />}
-        {page === 'conversations' && <PlaceholderPage title="Conversaciones" icon="◈" />}
+        {page === 'conversations' && <ConversacionesPage />}
         {page === 'crm' && <PlaceholderPage title="CRM" icon="◎" />}
         {page === 'tasks' && <TareasPage />}
         {page === 'team' && <TeamPage />}

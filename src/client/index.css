@@ -74,3 +74,35 @@ body {
 .pulse-dot {
   animation: pulse-dot 2s ease-in-out infinite;
 }
+
+/* Conversaciones page responsive split-pane */
+.conv-list-panel {
+  width: 300px;
+  flex-shrink: 0;
+}
+
+.conv-mobile-back {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .conv-list-panel {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    background: #0D0A06;
+    z-index: 5;
+    transition: transform 0.2s ease;
+  }
+
+  .conv-list-panel.conv-hidden {
+    transform: translateX(-100%);
+    pointer-events: none;
+  }
+
+  .conv-mobile-back {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+}

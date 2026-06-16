@@ -6,6 +6,7 @@ import { TareasPage } from '../../pages/TareasPage'
 import { PlaceholderPage } from '../../pages/PlaceholderPage'
 import { SistemaPage } from '../../pages/SistemaPage'
 import { ConversacionesPage } from '../../pages/ConversacionesPage'
+import { CRMPage } from '../../pages/CRMPage'
 
 type Page = 'dashboard' | 'conversations' | 'crm' | 'tasks' | 'team' | 'system'
 
@@ -27,7 +28,7 @@ export function Layout({ onLogout }: Props) {
       <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {page === 'dashboard' && <DashboardPage />}
         {page === 'conversations' && <ConversacionesPage />}
-        {page === 'crm' && <PlaceholderPage title="CRM" icon="◎" />}
+        {page === 'crm' && <CRMPage />}
         {page === 'tasks' && <TareasPage />}
         {page === 'team' && <TeamPage />}
         {page === 'system' && <SistemaPage />}

@@ -12,6 +12,7 @@ import { whatsappRoutes } from './routes/whatsapp.js'
 import { crmRoutes } from './routes/crm.js'
 import { voiceRoutes } from './routes/voice.js'
 import { unriarRoutes } from './routes/unriar.js'
+import { timeRoutes } from './routes/time.js'
 import { authMiddleware } from './middleware/auth.js'
 
 const app = new Hono()
@@ -39,6 +40,7 @@ api.route('/chat', chatRoutes)
 api.route('/whatsapp', whatsappRoutes)
 api.route('/crm', crmRoutes)
 api.route('/voice', voiceRoutes)
+api.route('/time', timeRoutes)
 app.route('/api', api)
 
 // Serve static frontend in production

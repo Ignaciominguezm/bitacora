@@ -7,8 +7,9 @@ import { PlaceholderPage } from '../../pages/PlaceholderPage'
 import { SistemaPage } from '../../pages/SistemaPage'
 import { ConversacionesPage } from '../../pages/ConversacionesPage'
 import { CRMPage } from '../../pages/CRMPage'
+import { TiempoPage } from '../../pages/TiempoPage'
 
-type Page = 'dashboard' | 'conversations' | 'crm' | 'tasks' | 'team' | 'system'
+type Page = 'dashboard' | 'conversations' | 'crm' | 'tasks' | 'team' | 'tiempo' | 'system'
 
 interface Props {
   onLogout: () => void
@@ -31,6 +32,7 @@ export function Layout({ onLogout }: Props) {
         {page === 'crm' && <CRMPage />}
         {page === 'tasks' && <TareasPage />}
         {page === 'team' && <TeamPage />}
+        {page === 'tiempo' && <TiempoPage />}
         {page === 'system' && <SistemaPage />}
       </main>
     </div>

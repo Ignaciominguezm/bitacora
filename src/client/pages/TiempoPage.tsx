@@ -179,12 +179,13 @@ export function TiempoPage() {
             justifyContent: 'space-between',
             gap: 12,
             padding: '10px 16px',
-            background: 'rgba(251,191,36,0.18)',
-            border: '1px solid rgba(251,191,36,0.4)',
-            color: '#2A2008'
+            background: '#92400E',
+            border: '1px solid #F59E0B',
+            color: '#FEF3C7'
           }}
         >
-          <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, lineHeight: 1.5 }}>
+          <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, lineHeight: 1.5, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+            <span style={{ color: '#FCD34D', flexShrink: 0 }}>⚠</span>
             Los registros anteriores al 1 de julio de 2026 pueden contener datos de prueba o entradas incompletas.
             Se recomienda usar datos desde julio 2026 para facturación.
           </span>
@@ -193,7 +194,7 @@ export function TiempoPage() {
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#2A2008',
+              color: '#FEF3C7',
               fontSize: 14,
               cursor: 'pointer',
               flexShrink: 0,

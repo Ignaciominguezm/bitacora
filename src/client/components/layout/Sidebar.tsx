@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-type Page = 'dashboard' | 'conversations' | 'crm' | 'tasks' | 'team' | 'system'
+type Page = 'dashboard' | 'conversations' | 'crm' | 'tasks' | 'team' | 'tiempo' | 'system'
 
 interface NavItem {
   id: Page | 'logout'
@@ -14,6 +14,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'crm', label: 'CRM', symbol: '◎' },
   { id: 'tasks', label: 'Tareas', symbol: '◻' },
   { id: 'team', label: 'Equipo', symbol: '◈' },
+  { id: 'tiempo', label: 'Tiempo', symbol: '◷' },
   { id: 'system', label: 'Sistema', symbol: '⊙' }
 ]
 

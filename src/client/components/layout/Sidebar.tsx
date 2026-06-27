@@ -6,14 +6,15 @@ interface NavItem {
   id: Page | 'logout'
   label: string
   symbol: string
+  icon?: string
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'dashboard', label: 'Dashboard', symbol: '⊞' },
-  { id: 'conversations', label: 'Conversaciones', symbol: '◈' },
-  { id: 'crm', label: 'CRM', symbol: '◎' },
-  { id: 'tasks', label: 'Tareas', symbol: '◻' },
-  { id: 'team', label: 'Equipo', symbol: '◈' },
+  { id: 'dashboard', label: 'Dashboard', symbol: '⊞', icon: '/icons/astrolabio.svg' },
+  { id: 'conversations', label: 'Conversaciones', symbol: '◈', icon: '/icons/mapa.svg' },
+  { id: 'crm', label: 'CRM', symbol: '◎', icon: '/icons/cofre.svg' },
+  { id: 'tasks', label: 'Tareas', symbol: '◻', icon: '/icons/espadas.svg' },
+  { id: 'team', label: 'Equipo', symbol: '◈', icon: '/icons/catalejo.svg' },
   { id: 'tiempo', label: 'Tiempo', symbol: '◷' },
   { id: 'system', label: 'Sistema', symbol: '⊙' }
 ]
@@ -85,7 +86,21 @@ export function Sidebar({ currentPage, onNavigate, onLogout }: Props) {
               style={btnStyle(item.id)}
               title={item.label}
             >
-              {item.symbol}
+              {item.icon ? (
+                <img
+                  src={item.icon}
+                  width="24"
+                  height="24"
+                  style={{
+                    opacity: currentPage === item.id ? 1 : 0.4,
+                    filter: currentPage === item.id ? 'brightness(1.2)' : 'none',
+                    transition: 'opacity 0.15s'
+                  }}
+                  alt={item.label}
+                />
+              ) : (
+                item.symbol
+              )}
             </button>
             {tooltip === item.id && (
               <div

@@ -15,7 +15,6 @@ authRoutes.post('/login', async (c) => {
   try {
     valid = await bcrypt.compare(password, hash)
   } catch {
-    // Hash in env is not a valid bcrypt string (truncated, CRLF-corrupted, etc.)
     return c.json({ error: 'Server misconfigured' }, 500)
   }
   if (!valid) return c.json({ error: 'Invalid password' }, 401)

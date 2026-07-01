@@ -1,23 +1,15 @@
 import { Hono } from 'hono'
 import { setCookie, deleteCookie, getCookie } from 'hono/cookie'
-import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 
 export const authRoutes = new Hono()
 
 authRoutes.post('/login', async (c) => {
   const { password } = await c.req.json<{ password: string }>()
-  const hash = (process.env.BITACORA_PASSWORD ?? '').trim()
+  const validPassword = (process.env.BITACORA_PASSWORD ?? '').trim()
 
-  if (!hash) return c.json({ error: 'Server misconfigured' }, 500)
-
-  let valid: boolean
-  try {
-    valid = await bcrypt.compare(password, hash)
-  } catch {
-    return c.json({ error: 'Server misconfigured' }, 500)
-  }
-  if (!valid) return c.json({ error: 'Invalid password' }, 401)
+  if (!validPassword) return c.json({ error: 'Server misconfigured' }, 500)
+  if (password !== validPassword) return c.json({ error: 'Invalid password' }, 401)
 
   const token = jwt.sign({ user: 'ignacio' }, process.env.JWT_SECRET!, { expiresIn: '48h' })
 

@@ -13,6 +13,7 @@ import { crmRoutes } from './routes/crm.js'
 import { voiceRoutes } from './routes/voice.js'
 import { unriarRoutes } from './routes/unriar.js'
 import { timeRoutes } from './routes/time.js'
+import { notifyRoutes } from './routes/notify.js'
 import { authMiddleware } from './middleware/auth.js'
 
 const app = new Hono()
@@ -26,6 +27,8 @@ app.use('/api/*', cors({
 app.route('/api/auth', authRoutes)
 // Unriar routes — mixed auth (each route handles its own auth)
 app.route('/api/unriar', unriarRoutes)
+// Notify routes — mixed auth (POST uses x-notify-key, rest use JWT cookie)
+app.route('/api/notify', notifyRoutes)
 
 // Protected API routes
 const api = new Hono()

@@ -49,7 +49,11 @@ app.route('/api', api)
 // Serve static frontend in production
 if (process.env.NODE_ENV === 'production') {
   app.use('/*', serveStatic({ root: './dist/public' }))
+  // SPA fallback — explicitly never serve index.html for /api/* paths
   app.get('/*', (c) => {
+    if (c.req.path.startsWith('/api/')) {
+      return c.json({ error: 'Not found' }, 404)
+    }
     return serveStatic({ root: './dist/public', path: 'index.html' })(c, async () => {})
   })
 }

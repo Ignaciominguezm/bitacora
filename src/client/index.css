@@ -75,6 +75,16 @@ body {
   animation: pulse-dot 2s ease-in-out infinite;
 }
 
+/* Notification toast slide-in */
+@keyframes notif-slide-in {
+  from { transform: translateX(120%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+.notif-card {
+  animation: notif-slide-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 /* Conversaciones page responsive split-pane */
 .conv-list-panel {
   width: 300px;

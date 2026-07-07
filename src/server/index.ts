@@ -27,13 +27,13 @@ app.use('/api/*', cors({
 app.route('/api/auth', authRoutes)
 // Unriar routes — mixed auth (each route handles its own auth)
 app.route('/api/unriar', unriarRoutes)
-// Notify routes — mixed auth (POST uses x-notify-key, rest use JWT cookie)
-app.route('/api/notify', notifyRoutes)
 
 // Protected API routes
 const api = new Hono()
 api.use('/*', async (c, next) => {
+  // These routes manage their own auth internally
   if (c.req.path === '/api/chat/unriar/callback') return next()
+  if (c.req.path.startsWith('/api/notify')) return next()
   return authMiddleware(c, next)
 })
 api.route('/health', healthRoutes)
@@ -44,6 +44,7 @@ api.route('/whatsapp', whatsappRoutes)
 api.route('/crm', crmRoutes)
 api.route('/voice', voiceRoutes)
 api.route('/time', timeRoutes)
+api.route('/notify', notifyRoutes)
 app.route('/api', api)
 
 // Serve static frontend in production

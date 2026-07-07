@@ -55,15 +55,21 @@ export function NotificationCenter() {
       .catch(() => {})
   }, [])
 
-  // SSE connection
+  // SSE connection — withCredentials sends the JWT cookie
   useEffect(() => {
-    const es = new EventSource('/api/notify/stream')
+    const es = new EventSource('/api/notify/stream', { withCredentials: true })
 
     es.addEventListener('notification', (e: MessageEvent) => {
       const notif: Notification = JSON.parse(e.data as string)
       setNotifications((prev) => [notif, ...prev])
       setVisible(true)
     })
+
+    es.addEventListener('connected', () => {
+      console.log('[notify] SSE connected')
+    })
+
+    es.onerror = () => { /* browser auto-reconnects */ }
 
     esRef.current = es
     return () => { es.close() }

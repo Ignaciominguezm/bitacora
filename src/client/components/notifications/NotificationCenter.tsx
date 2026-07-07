@@ -218,9 +218,9 @@ export function NotificationCenter() {
                     style={{
                       fontFamily: 'JetBrains Mono, monospace',
                       fontSize: 9,
-                      color: '#5A4A30',
-                      background: 'rgba(200,168,64,0.07)',
-                      border: '1px solid rgba(200,168,64,0.15)',
+                      color: '#E8DCC8',
+                      background: '#5C3D0E',
+                      border: '1px solid rgba(200,168,64,0.3)',
                       padding: '1px 5px',
                       letterSpacing: '0.06em'
                     }}
@@ -231,7 +231,7 @@ export function NotificationCenter() {
                     style={{
                       fontFamily: 'JetBrains Mono, monospace',
                       fontSize: 9,
-                      color: tipoColor(n.tipo),
+                      color: '#C8A840',
                       letterSpacing: '0.04em'
                     }}
                   >
@@ -243,7 +243,7 @@ export function NotificationCenter() {
                     style={{
                       fontFamily: 'JetBrains Mono, monospace',
                       fontSize: 9,
-                      color: '#5A4A30'
+                      color: '#8B6914'
                     }}
                   >
                     {relativeTime(n.timestamp)}
@@ -254,15 +254,15 @@ export function NotificationCenter() {
                     style={{
                       background: 'transparent',
                       border: 'none',
-                      color: '#5A4A30',
+                      color: '#E8DCC8',
                       cursor: 'pointer',
-                      fontSize: 12,
+                      fontSize: 16,
                       lineHeight: 1,
                       padding: '0 2px',
                       transition: 'color 0.15s'
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = '#E8DCC8')}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = '#5A4A30')}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = '#F87171')}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = '#E8DCC8')}
                   >
                     ✕
                   </button>
@@ -275,7 +275,7 @@ export function NotificationCenter() {
                   margin: 0,
                   fontFamily: 'DM Sans, sans-serif',
                   fontSize: 13,
-                  color: '#E8DCC8',
+                  color: '#A09070',
                   lineHeight: 1.45
                 }}
               >

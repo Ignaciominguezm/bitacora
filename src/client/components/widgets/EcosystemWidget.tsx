@@ -13,10 +13,20 @@ interface ServerSummary {
   disk?: { percent: number }
 }
 
+interface PushServerSummary {
+  hostname: string
+  status: 'ok' | 'offline'
+  seconds_since_report: number
+  payload: {
+    cpu_percent?: number
+  }
+}
+
 interface HealthData {
   overall: 'up' | 'degraded' | 'down'
   services: ServiceStatus[]
   servers: ServerSummary[]
+  push_servers: PushServerSummary[]
 }
 
 const SERVICE_LABELS: Record<string, string> = {
@@ -67,6 +77,7 @@ export function EcosystemWidget() {
 
   const services = health?.services ?? []
   const servers = health?.servers ?? []
+  const pushServers = health?.push_servers ?? []
   const anyDown = services.some((s) => s.status === 'down')
   const allUp = services.every((s) => s.status === 'up')
 
@@ -177,6 +188,41 @@ export function EcosystemWidget() {
                           disk {diskPct.toFixed(0)}%
                         </span>
                       )}
+                    </div>
+                  )
+                })}
+              </>
+            )}
+
+            {/* Push-based stations */}
+            {pushServers.length > 0 && (
+              <>
+                <div style={{ padding: '6px 12px 2px', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.1em' }}>
+                  ESTACIONES
+                </div>
+                {pushServers.map((ps) => {
+                  const online = ps.status === 'ok'
+                  const cpu = ps.payload.cpu_percent
+                  return (
+                    <div
+                      key={ps.hostname}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '4px 12px',
+                        borderBottom: '1px solid rgba(200,168,64,0.06)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: online ? '#4ade80' : '#f87171', flexShrink: 0 }} />
+                        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#A09070' }}>
+                          {ps.hostname}
+                        </span>
+                      </div>
+                      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: online ? '#5A4A30' : '#f87171' }}>
+                        {online && cpu !== undefined ? `cpu ${cpu.toFixed(0)}%` : 'offline'}
+                      </span>
                     </div>
                   )
                 })}

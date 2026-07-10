@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { bitacoraDb } from '../db/index.js'
 
 export const healthRoutes = new Hono()
 
@@ -31,8 +32,20 @@ interface VpsAgentData {
   uptime_seconds?: number
 }
 
+interface PushServerRow {
+  hostname: string
+  payload: Record<string, unknown>
+  received_at: Date
+}
+
+const OFFLINE_THRESHOLD_S = 180
+
 healthRoutes.get('/', async (c) => {
-  const [serviceResults, serverResults] = await Promise.all([
+  const pushQuery = bitacoraDb
+    ? bitacoraDb.query<PushServerRow>('SELECT hostname, payload, received_at FROM server_reports')
+    : Promise.resolve({ rows: [] as PushServerRow[] })
+
+  const [serviceResults, serverResults, pushResult] = await Promise.all([
     Promise.allSettled(
       SERVICES.map(async (svc) => {
         const start = Date.now()
@@ -70,7 +83,8 @@ healthRoutes.get('/', async (c) => {
           return { name: srv.name, url: srv.url, status: 'error', latency_ms: Date.now() - start }
         }
       })
-    )
+    ),
+    pushQuery
   ])
 
   const services = serviceResults.map((r) =>
@@ -80,9 +94,20 @@ healthRoutes.get('/', async (c) => {
     r.status === 'fulfilled' ? r.value : { name: 'unknown', url: '', status: 'error', latency_ms: 0 }
   )
 
+  const push_servers = pushResult.rows.map((row) => {
+    const seconds_since_report = Math.floor((Date.now() - new Date(row.received_at).getTime()) / 1000)
+    return {
+      hostname: row.hostname,
+      status: seconds_since_report > OFFLINE_THRESHOLD_S ? 'offline' : 'ok',
+      last_seen: new Date(row.received_at).toISOString(),
+      seconds_since_report,
+      payload: row.payload
+    }
+  })
+
   const anyDown = services.some((s) => s.status === 'down')
   const anyDegraded = services.some((s) => s.status === 'degraded')
   const overall = anyDown ? 'down' : anyDegraded ? 'degraded' : 'up'
 
-  return c.json({ overall, services, servers })
+  return c.json({ overall, services, servers, push_servers })
 })

@@ -14,6 +14,7 @@ import { voiceRoutes } from './routes/voice.js'
 import { unriarRoutes } from './routes/unriar.js'
 import { timeRoutes } from './routes/time.js'
 import { notifyRoutes } from './routes/notify.js'
+import { serversRoutes } from './routes/servers.js'
 import { authMiddleware } from './middleware/auth.js'
 
 const app = new Hono()
@@ -34,6 +35,7 @@ api.use('/*', async (c, next) => {
   // These routes manage their own auth internally
   if (c.req.path === '/api/chat/unriar/callback') return next()
   if (c.req.path.startsWith('/api/notify')) return next()
+  if (c.req.path.startsWith('/api/servers')) return next()
   return authMiddleware(c, next)
 })
 api.route('/health', healthRoutes)
@@ -45,6 +47,7 @@ api.route('/crm', crmRoutes)
 api.route('/voice', voiceRoutes)
 api.route('/time', timeRoutes)
 api.route('/notify', notifyRoutes)
+api.route('/servers', serversRoutes)
 app.route('/api', api)
 
 // Serve static frontend in production

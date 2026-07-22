@@ -3,13 +3,14 @@ import { Sidebar } from './Sidebar'
 import { DashboardPage } from '../../pages/DashboardPage'
 import { TeamPage } from '../../pages/TeamPage'
 import { TareasPage } from '../../pages/TareasPage'
-import { PlaceholderPage } from '../../pages/PlaceholderPage'
 import { SistemaPage } from '../../pages/SistemaPage'
 import { ConversacionesPage } from '../../pages/ConversacionesPage'
 import { CRMPage } from '../../pages/CRMPage'
 import { TiempoPage } from '../../pages/TiempoPage'
+import { AjustesPage } from '../../pages/AjustesPage'
+import { NotificationCenter } from '../notifications/NotificationCenter'
 
-type Page = 'dashboard' | 'conversations' | 'crm' | 'tasks' | 'team' | 'tiempo' | 'system'
+type Page = 'dashboard' | 'conversations' | 'crm' | 'tasks' | 'team' | 'tiempo' | 'system' | 'ajustes'
 
 interface Props {
   onLogout: () => void
@@ -34,7 +35,9 @@ export function Layout({ onLogout }: Props) {
         {page === 'team' && <TeamPage />}
         {page === 'tiempo' && <TiempoPage />}
         {page === 'system' && <SistemaPage />}
+        {page === 'ajustes' && <AjustesPage />}
       </main>
+      <NotificationCenter onNavigate={setPage} />
     </div>
   )
 }

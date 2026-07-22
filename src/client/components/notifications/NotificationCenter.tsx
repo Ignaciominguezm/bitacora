@@ -9,6 +9,17 @@ interface Notification {
   leida: boolean
 }
 
+interface QuickPref {
+  scope_value: string
+  enabled: boolean
+}
+
+interface PrefsResponse {
+  global: QuickPref[]
+  actor: QuickPref[]
+  origen: QuickPref[]
+}
+
 const MAX_VISIBLE = 5
 
 const TIPO_COLOR: Record<string, string> = {
@@ -29,11 +40,55 @@ function relativeTime(iso: string): string {
   return `hace ${Math.floor(diff / 86400)} d`
 }
 
-export function NotificationCenter() {
+function QuickToggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      style={{
+        width: 34,
+        height: 19,
+        borderRadius: 10,
+        background: checked ? '#C8A840' : 'rgba(90,74,48,0.5)',
+        border: 'none',
+        cursor: 'pointer',
+        position: 'relative',
+        transition: 'background 0.2s',
+        flexShrink: 0,
+        padding: 0
+      }}
+    >
+      <span
+        style={{
+          position: 'absolute',
+          top: 2,
+          left: checked ? 17 : 2,
+          width: 15,
+          height: 15,
+          borderRadius: '50%',
+          background: '#E8DCC8',
+          transition: 'left 0.2s',
+          display: 'block'
+        }}
+      />
+    </button>
+  )
+}
+
+interface Props {
+  onNavigate?: (page: string) => void
+}
+
+export function NotificationCenter({ onNavigate }: Props) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [visible, setVisible] = useState(true)
+  const [quickOpen, setQuickOpen] = useState(false)
+  const [globalEnabled, setGlobalEnabled] = useState(true)
+  const [myActionsEnabled, setMyActionsEnabled] = useState(true)
   const esRef = useRef<EventSource | null>(null)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const quickRef = useRef<HTMLDivElement | null>(null)
   const [, forceUpdate] = useState(0)
 
   // Refresh relative timestamps every minute
@@ -75,6 +130,51 @@ export function NotificationCenter() {
     return () => { es.close() }
   }, [])
 
+  // Re-fetch quick prefs each time the panel opens (stays fresh after Ajustes changes)
+  useEffect(() => {
+    if (!quickOpen) return
+    fetch('/api/notify/preferences', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((data: PrefsResponse) => {
+        const gp = data.global?.find((p) => p.scope_value === 'all')
+        const ap = data.actor?.find((p) => p.scope_value === 'Ignacio Mínguez Montes')
+        setGlobalEnabled(gp?.enabled ?? true)
+        setMyActionsEnabled(ap?.enabled ?? true)
+      })
+      .catch(() => {})
+  }, [quickOpen])
+
+  // Close quick panel on outside click
+  useEffect(() => {
+    if (!quickOpen) return
+    function handler(e: MouseEvent) {
+      if (quickRef.current && !quickRef.current.contains(e.target as Node)) {
+        setQuickOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [quickOpen])
+
+  async function patchPref(scope_type: string, scope_value: string, enabled: boolean) {
+    await fetch('/api/notify/preferences', {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scope_type, scope_value, enabled })
+    }).catch(() => {})
+  }
+
+  async function toggleGlobal(v: boolean) {
+    setGlobalEnabled(v)
+    await patchPref('global', 'all', v)
+  }
+
+  async function toggleMyActions(v: boolean) {
+    setMyActionsEnabled(v)
+    await patchPref('actor', 'Ignacio Mínguez Montes', v)
+  }
+
   async function markRead(id: number) {
     setNotifications((prev) => prev.filter((n) => n.id !== id))
     await fetch(`/api/notify/${id}/read`, { method: 'PATCH', credentials: 'include' }).catch(() => {})
@@ -91,8 +191,9 @@ export function NotificationCenter() {
 
   return (
     <>
-      {/* Bell button — fixed top right */}
+      {/* Bell + gear — fixed top right */}
       <div
+        ref={quickRef}
         style={{
           position: 'fixed',
           top: 12,
@@ -103,6 +204,29 @@ export function NotificationCenter() {
           gap: 6
         }}
       >
+        {/* Gear button */}
+        <button
+          onClick={() => setQuickOpen((v) => !v)}
+          title="Ajustes de notificaciones"
+          style={{
+            width: 30,
+            height: 30,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: quickOpen ? 'rgba(200,168,64,0.12)' : 'transparent',
+            border: `1px solid ${quickOpen ? 'rgba(200,168,64,0.35)' : 'rgba(200,168,64,0.1)'}`,
+            borderRadius: 4,
+            cursor: 'pointer',
+            fontSize: 14,
+            color: quickOpen ? '#C8A840' : '#5A4A30',
+            transition: 'all 0.15s'
+          }}
+        >
+          ⚙
+        </button>
+
+        {/* Bell button */}
         <button
           onClick={() => setVisible((v) => !v)}
           title={visible ? 'Ocultar notificaciones' : 'Mostrar notificaciones'}
@@ -146,6 +270,82 @@ export function NotificationCenter() {
             </span>
           )}
         </button>
+
+        {/* Quick settings dropdown */}
+        {quickOpen && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 44,
+              right: 0,
+              width: 260,
+              background: '#1A1510',
+              border: '1px solid rgba(200,168,64,0.25)',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+              zIndex: 300
+            }}
+          >
+            <div style={{ padding: '8px 12px', borderBottom: '1px solid rgba(200,168,64,0.1)', fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5A4A30', letterSpacing: '0.1em' }}>
+              NOTIFICACIONES
+            </div>
+
+            {/* Master toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid rgba(200,168,64,0.06)' }}>
+              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#E8DCC8' }}>
+                Activar notificaciones
+              </span>
+              <QuickToggle checked={globalEnabled} onChange={toggleGlobal} />
+            </div>
+
+            {/* My actions toggle */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 14px',
+                borderBottom: '1px solid rgba(200,168,64,0.06)',
+                opacity: globalEnabled ? 1 : 0.4,
+                transition: 'opacity 0.15s'
+              }}
+            >
+              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#E8DCC8' }}>
+                Mis acciones
+              </span>
+              <QuickToggle
+                checked={myActionsEnabled}
+                onChange={(v) => { if (globalEnabled) toggleMyActions(v) }}
+              />
+            </div>
+
+            {/* Link to Ajustes page */}
+            <button
+              onClick={() => {
+                setQuickOpen(false)
+                onNavigate?.('ajustes')
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 14px',
+                background: 'transparent',
+                border: 'none',
+                cursor: onNavigate ? 'pointer' : 'default',
+                fontFamily: 'JetBrains Mono, monospace',
+                fontSize: 10,
+                color: '#8B6914',
+                letterSpacing: '0.04em',
+                width: '100%'
+              }}
+              onMouseEnter={(e) => { if (onNavigate) e.currentTarget.style.color = '#C8A840' }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = '#8B6914' }}
+            >
+              <span>Más ajustes</span>
+              <span>→</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Toast stack — fixed bottom right */}
@@ -201,7 +401,7 @@ export function NotificationCenter() {
             </div>
           )}
 
-          {/* Cards — newest first (slice already ordered newest→oldest) */}
+          {/* Cards — newest first */}
           {visibleCards.map((n) => (
             <div
               key={n.id}

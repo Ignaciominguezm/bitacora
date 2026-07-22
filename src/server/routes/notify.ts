@@ -12,8 +12,17 @@ interface NotificationRow {
   origen: string
   tipo: string
   mensaje: string
+  actor?: string | null
   timestamp: string
   leida: boolean
+}
+
+interface PrefRow {
+  id?: number
+  scope_type: string
+  scope_value: string
+  enabled: boolean
+  updated_at?: string
 }
 
 type SSEWriter = (evt: { event?: string; data: string }) => Promise<void>
@@ -51,6 +60,27 @@ async function sendTelegram(mensaje: string) {
   }
 }
 
+async function loadPreferences(): Promise<PrefRow[]> {
+  if (!bitacoraDb) return []
+  try {
+    const result = await bitacoraDb.query<PrefRow>(
+      'SELECT scope_type, scope_value, enabled FROM notif_preferences'
+    )
+    return result.rows
+  } catch {
+    return []
+  }
+}
+
+function isFiltered(prefs: PrefRow[], origen: string, actor?: string): boolean {
+  for (const p of prefs) {
+    if (p.scope_type === 'global' && p.scope_value === 'all' && !p.enabled) return true
+    if (p.scope_type === 'origen' && p.scope_value === origen && !p.enabled) return true
+    if (actor && p.scope_type === 'actor' && p.scope_value === actor && !p.enabled) return true
+  }
+  return false
+}
+
 // POST /api/notify — external apps post notifications here
 notifyRoutes.post('/', async (c) => {
   const notifyKey = c.req.header('x-notify-key')
@@ -61,21 +91,28 @@ notifyRoutes.post('/', async (c) => {
 
   if (!bitacoraDb) return c.json({ error: 'Database unavailable' }, 503)
 
-  const { origen, tipo, mensaje } = await c.req.json<{
+  const { origen, tipo, mensaje, actor } = await c.req.json<{
     origen: string
     tipo: string
     mensaje: string
+    actor?: string
   }>()
 
   if (!origen || !tipo || !mensaje) {
     return c.json({ error: 'origen, tipo and mensaje are required' }, 400)
   }
 
+  // Server-side preference check — applies equally to SSE, Telegram, and future channels
+  const prefs = await loadPreferences()
+  if (isFiltered(prefs, origen, actor)) {
+    return c.json({ ok: true, filtered: true })
+  }
+
   const result = await bitacoraDb.query<NotificationRow>(
-    `INSERT INTO notificaciones (origen, tipo, mensaje, timestamp, leida)
-     VALUES ($1, $2, $3, NOW(), false)
-     RETURNING id, origen, tipo, mensaje, timestamp, leida`,
-    [origen, tipo, mensaje]
+    `INSERT INTO notificaciones (origen, tipo, mensaje, actor, timestamp, leida)
+     VALUES ($1, $2, $3, $4, NOW(), false)
+     RETURNING id, origen, tipo, mensaje, actor, timestamp, leida`,
+    [origen, tipo, mensaje, actor ?? null]
   )
 
   const notification = result.rows[0]
@@ -116,16 +153,58 @@ notifyRoutes.get('/stream', async (c) => {
   })
 })
 
+// GET /api/notify/preferences — JWT protected
+notifyRoutes.get('/preferences', authMiddleware, async (c) => {
+  if (!bitacoraDb) return c.json({ global: [], origen: [], actor: [] })
+  const result = await bitacoraDb.query<PrefRow>(
+    `SELECT id, scope_type, scope_value, enabled, updated_at
+     FROM notif_preferences
+     ORDER BY scope_type, scope_value`
+  )
+  const grouped: Record<string, PrefRow[]> = { global: [], origen: [], actor: [] }
+  for (const row of result.rows) {
+    const key = row.scope_type
+    if (!grouped[key]) grouped[key] = []
+    grouped[key].push(row)
+  }
+  return c.json(grouped)
+})
+
 // GET /api/notify/unread — JWT protected
 notifyRoutes.get('/unread', authMiddleware, async (c) => {
   if (!bitacoraDb) return c.json([])
   const result = await bitacoraDb.query<NotificationRow>(
-    `SELECT id, origen, tipo, mensaje, timestamp, leida
+    `SELECT id, origen, tipo, mensaje, actor, timestamp, leida
      FROM notificaciones
      WHERE leida = false
      ORDER BY timestamp DESC`
   )
   return c.json(result.rows)
+})
+
+// PATCH /api/notify/preferences — JWT protected (before /:id/read to avoid conflict)
+notifyRoutes.patch('/preferences', authMiddleware, async (c) => {
+  if (!bitacoraDb) return c.json({ error: 'Database unavailable' }, 503)
+  const { scope_type, scope_value, enabled } = await c.req.json<{
+    scope_type: string
+    scope_value: string
+    enabled: boolean
+  }>()
+
+  if (!scope_type || !scope_value || typeof enabled !== 'boolean') {
+    return c.json({ error: 'scope_type, scope_value, and enabled are required' }, 400)
+  }
+
+  const result = await bitacoraDb.query<PrefRow>(
+    `INSERT INTO notif_preferences (scope_type, scope_value, enabled, updated_at)
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (scope_type, scope_value)
+     DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = NOW()
+     RETURNING id, scope_type, scope_value, enabled, updated_at`,
+    [scope_type, scope_value, enabled]
+  )
+
+  return c.json(result.rows[0])
 })
 
 // PATCH /api/notify/read-all — JWT protected (must be before /:id/read)
@@ -142,7 +221,7 @@ notifyRoutes.patch('/:id/read', authMiddleware, async (c) => {
   if (!Number.isInteger(id)) return c.json({ error: 'Invalid id' }, 400)
   const result = await bitacoraDb.query<NotificationRow>(
     `UPDATE notificaciones SET leida = true WHERE id = $1
-     RETURNING id, origen, tipo, mensaje, timestamp, leida`,
+     RETURNING id, origen, tipo, mensaje, actor, timestamp, leida`,
     [id]
   )
   if (result.rows.length === 0) return c.json({ error: 'Not found' }, 404)

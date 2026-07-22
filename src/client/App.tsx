@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { LoginPage } from './pages/LoginPage'
 import { Layout } from './components/layout/Layout'
-import { NotificationCenter } from './components/notifications/NotificationCenter'
 
 type AuthState = 'loading' | 'unauthenticated' | 'authenticated'
 
@@ -29,10 +28,5 @@ export default function App() {
     return <LoginPage onLogin={() => setAuth('authenticated')} />
   }
 
-  return (
-    <>
-      <Layout onLogout={() => setAuth('unauthenticated')} />
-      <NotificationCenter />
-    </>
-  )
+  return <Layout onLogout={() => setAuth('unauthenticated')} />
 }

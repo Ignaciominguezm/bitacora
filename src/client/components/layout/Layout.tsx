@@ -8,9 +8,10 @@ import { ConversacionesPage } from '../../pages/ConversacionesPage'
 import { CRMPage } from '../../pages/CRMPage'
 import { TiempoPage } from '../../pages/TiempoPage'
 import { AjustesPage } from '../../pages/AjustesPage'
+import { FinanzasPage } from '../../pages/FinanzasPage'
 import { NotificationCenter } from '../notifications/NotificationCenter'
 
-type Page = 'dashboard' | 'conversations' | 'crm' | 'tasks' | 'team' | 'tiempo' | 'system' | 'ajustes'
+type Page = 'dashboard' | 'conversations' | 'crm' | 'tasks' | 'team' | 'tiempo' | 'finanzas' | 'system' | 'ajustes'
 
 interface Props {
   onLogout: () => void
@@ -34,6 +35,7 @@ export function Layout({ onLogout }: Props) {
         {page === 'tasks' && <TareasPage />}
         {page === 'team' && <TeamPage />}
         {page === 'tiempo' && <TiempoPage />}
+        {page === 'finanzas' && <FinanzasPage />}
         {page === 'system' && <SistemaPage />}
         {page === 'ajustes' && <AjustesPage />}
       </main>

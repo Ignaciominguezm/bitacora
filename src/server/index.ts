@@ -15,6 +15,7 @@ import { unriarRoutes } from './routes/unriar.js'
 import { timeRoutes } from './routes/time.js'
 import { notifyRoutes } from './routes/notify.js'
 import { serversRoutes } from './routes/servers.js'
+import { finanzasRoutes } from './routes/finanzas.js'
 import { authMiddleware } from './middleware/auth.js'
 
 const app = new Hono()
@@ -48,6 +49,7 @@ api.route('/voice', voiceRoutes)
 api.route('/time', timeRoutes)
 api.route('/notify', notifyRoutes)
 api.route('/servers', serversRoutes)
+api.route('/finanzas', finanzasRoutes)
 app.route('/api', api)
 
 // Serve static frontend in production

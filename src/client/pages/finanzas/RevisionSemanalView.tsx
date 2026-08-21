@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { type Ambito, hexToRgba, formatSaldo, mondayOf, addDaysStr, formatDateEs } from './shared'
 
 interface RevisionCuenta {
@@ -504,7 +504,15 @@ function PrevisionesBlock({
   }
 
   return (
-    <Section title="PREVISIONES VIGENTES" color={ambito.color} onAdd={() => setAdding((v) => !v)}>
+    <Section
+      title="PREVISIONES VIGENTES"
+      color={ambito.color}
+      onAdd={() => setAdding((v) => !v)}
+      info={{
+        title: '¿Qué es una previsión?',
+        body: 'Dinero que esperas que entre o salga, pero que todavía NO ha pasado por el banco.\n- Cobros previstos: lo que esperas recibir (cobro del autónomo, factura de un cliente, ingreso de una formación).\n- Pagos previstos: lo que sabes que pagarás (cuota de autónomo, gestoría, hosting, hipoteca, proveedor).\nLa clave: aún no ha entrado ni salido, pero quieres verlo venir.'
+      }}
+    >
       {loading && <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#5A4A30' }}>Cargando...</div>}
       {!loading && previsiones.length === 0 && !adding && (
         <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#5A4A30', padding: '8px 4px' }}>Sin previsiones vigentes.</div>
@@ -598,7 +606,15 @@ function ReservasBlock({
   }
 
   return (
-    <Section title="RESERVAS ACTIVAS" color={ambito.color} onAdd={() => setAdding((v) => !v)}>
+    <Section
+      title="RESERVAS ACTIVAS"
+      color={ambito.color}
+      onAdd={() => setAdding((v) => !v)}
+      info={{
+        title: '¿Qué es una reserva?',
+        body: 'Dinero que YA tienes en una cuenta, pero que está apartado para algo y no consideras libre.\nEjemplos: 600€ para impuestos, 300€ para devolver a alguien, 1.000€ de colchón, dinero apartado para una factura concreta.\nLa clave: el dinero ya existe, pero está comprometido. (Distinto de una previsión: la previsión es dinero que esperas; la reserva es dinero que ya tienes pero no puedes gastar alegremente.)'
+      }}
+    >
       {loading && <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#5A4A30' }}>Cargando...</div>}
       {!loading && reservas.length === 0 && !adding && (
         <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#5A4A30', padding: '8px 4px' }}>Sin reservas activas.</div>
@@ -689,7 +705,15 @@ function DeudasBlock({
   }
 
   return (
-    <Section title="DEUDAS PENDIENTES" color={ambito.color} onAdd={() => setAdding((v) => !v)}>
+    <Section
+      title="DEUDAS PENDIENTES"
+      color={ambito.color}
+      onAdd={() => setAdding((v) => !v)}
+      info={{
+        title: '¿Qué es una deuda?',
+        body: 'Obligaciones o derechos de cobro que quieres controlar como deuda viva.\n- Me deben: alguien te debe dinero (una factura ya vencida).\n- Debo: tú debes saldar algo (a una persona, a un proveedor).\nLa clave: la deuda tiene peso de obligación/seguimiento. Una previsión es algo esperado; una deuda es algo que ya consideras pendiente de saldar.\nEjemplo: "me pagará la factura el día 5" es previsión; "me debe una factura ya vencida" es deuda.'
+      }}
+    >
       {loading && <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#5A4A30' }}>Cargando...</div>}
       {!loading && deudas.length === 0 && !adding && (
         <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#5A4A30', padding: '8px 4px' }}>Sin deudas pendientes.</div>
@@ -821,21 +845,106 @@ function ResumenComparacion({ compareData }: { compareData: CompareResponse | nu
   )
 }
 
+function InfoButton({ title, body }: { title: string; body: string }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  return (
+    <div ref={ref} style={{ position: 'relative', display: 'inline-flex' }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-label={title}
+        aria-expanded={open}
+        style={{
+          width: 15,
+          height: 15,
+          borderRadius: '50%',
+          border: `1px solid ${open ? 'rgba(200,168,64,0.6)' : 'rgba(200,168,64,0.3)'}`,
+          background: open ? 'rgba(200,168,64,0.15)' : 'transparent',
+          color: open ? '#C8A840' : '#7A6A50',
+          fontFamily: 'JetBrains Mono, monospace',
+          fontSize: 9,
+          lineHeight: '13px',
+          cursor: 'pointer',
+          padding: 0,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0
+        }}
+      >
+        i
+      </button>
+
+      {open && (
+        <div
+          role="tooltip"
+          style={{
+            position: 'absolute',
+            top: 20,
+            left: 0,
+            zIndex: 50,
+            width: 300,
+            maxWidth: '85vw',
+            background: '#13100A',
+            border: '1px solid rgba(200,168,64,0.3)',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.55)',
+            padding: 14,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ fontFamily: 'Cinzel, serif', fontSize: 12, color: '#C8A840', letterSpacing: '0.04em' }}>
+              {title}
+            </span>
+            <button
+              onClick={() => setOpen(false)}
+              aria-label="Cerrar"
+              style={{ background: 'transparent', border: 'none', color: '#5A4A30', cursor: 'pointer', fontSize: 13, padding: 0, lineHeight: 1, flexShrink: 0 }}
+            >
+              ✕
+            </button>
+          </div>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#A09070', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+            {body}
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Section({
   title,
   color,
   onAdd,
+  info,
   children
 }: {
   title: string
   color: string
   onAdd?: () => void
+  info?: { title: string; body: string }
   children: React.ReactNode
 }) {
   return (
     <section style={{ background: '#13100A', border: `1px solid ${hexToRgba(color, 0.2)}` }}>
       <div style={{ padding: '8px 12px', borderBottom: `1px solid ${hexToRgba(color, 0.1)}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5A4A30', letterSpacing: '0.12em' }}>{title}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5A4A30', letterSpacing: '0.12em' }}>{title}</span>
+          {info && <InfoButton title={info.title} body={info.body} />}
+        </div>
         {onAdd && (
           <button onClick={onAdd} style={{ ...smallBtn, color: '#A09070' }}>+ Añadir</button>
         )}

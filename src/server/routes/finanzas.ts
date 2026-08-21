@@ -19,7 +19,7 @@ finanzasRoutes.get('/ambitos', async (c) => {
   if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
   try {
     const result = await finanzasDb.query(
-      `SELECT id, nombre, tipo, orden, color, lleva_contabilidad, lleva_fiscalidad, created_at
+      `SELECT id, nombre, tipo, orden, color, lleva_contabilidad, lleva_fiscalidad, created_at, updated_at
        FROM ambitos ORDER BY orden`
     )
     return c.json({ ambitos: result.rows })

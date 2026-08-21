@@ -11,13 +11,21 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 );
 
 -- ─── ambitos ─────────────────────────────────────────────────────────────
--- Espacios de separación de saldos y movimientos (personal, empresa, etc.).
--- Seed de los 4 ámbitos en 002_seed_ambitos.sql.
+-- Espacios de separación de saldos y movimientos. Todos los ámbitos tienen
+-- tesorería (saldos, previsiones, reservas, deudas, revisión semanal).
+-- lleva_contabilidad / lleva_fiscalidad son propiedades estructurales que
+-- declaran qué ámbitos podrán entrar en las capas contable/fiscal de fases
+-- futuras (no implican ninguna lógica contable/fiscal en este esquema).
+-- Seed de los 3 ámbitos en 002_seed_ambitos.sql.
 CREATE TABLE IF NOT EXISTS ambitos (
-  id          SERIAL PRIMARY KEY,
-  nombre      TEXT NOT NULL UNIQUE,
-  slug        TEXT NOT NULL UNIQUE,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+  id                  SERIAL PRIMARY KEY,
+  nombre              TEXT NOT NULL UNIQUE,
+  tipo                TEXT NOT NULL CHECK (tipo IN ('sociedad', 'autonomo', 'personal')),
+  orden               SMALLINT NOT NULL,
+  color               TEXT NOT NULL,
+  lleva_contabilidad  BOOLEAN NOT NULL DEFAULT false,
+  lleva_fiscalidad    BOOLEAN NOT NULL DEFAULT false,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ─── cuentas_financieras ─────────────────────────────────────────────────

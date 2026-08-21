@@ -1,6 +1,10 @@
 -- Bitácora Finanzas — 001_finanzas_schema
 -- Ejecutar en finanzas_db con ignacio_admin. Solo DDL, idempotente donde es posible.
 -- No usa DATABASE_URL de Bitácora: pool de la app conecta a host postgres-master.
+--
+-- updated_at: no hay triggers en esta base. Cada tabla de negocio lo lleva
+-- con DEFAULT now() en el INSERT; es responsabilidad de la app fijarlo a
+-- now() en cada UPDATE. No se crea infraestructura de triggers para esto.
 
 -- ─── schema_migrations ──────────────────────────────────────────────────
 -- Registro de versiones aplicadas. Cada migración inserta su propia fila
@@ -25,18 +29,24 @@ CREATE TABLE IF NOT EXISTS ambitos (
   color               TEXT NOT NULL,
   lleva_contabilidad  BOOLEAN NOT NULL DEFAULT false,
   lleva_fiscalidad    BOOLEAN NOT NULL DEFAULT false,
-  created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ─── cuentas_financieras ─────────────────────────────────────────────────
+-- tipo es obligatorio (banco/efectivo/otro); entidad es opcional y no lo
+-- sustituye — una cuenta banco='BBVA' tiene entidad; una de tipo efectivo
+-- normalmente no.
 CREATE TABLE IF NOT EXISTS cuentas_financieras (
   id          SERIAL PRIMARY KEY,
   ambito_id   INTEGER NOT NULL REFERENCES ambitos(id) ON DELETE RESTRICT,
   nombre      TEXT NOT NULL,
+  tipo        TEXT NOT NULL CHECK (tipo IN ('banco', 'efectivo', 'otro')),
   entidad     TEXT,
   moneda      CHAR(3) NOT NULL DEFAULT 'EUR',
   activa      BOOLEAN NOT NULL DEFAULT true,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_cuentas_financieras_ambito
@@ -47,8 +57,11 @@ CREATE INDEX IF NOT EXISTS idx_cuentas_financieras_ambito
 CREATE TABLE IF NOT EXISTS revisiones_semanales (
   id          SERIAL PRIMARY KEY,
   fecha       DATE NOT NULL,
+  estado      TEXT NOT NULL DEFAULT 'borrador'
+                CHECK (estado IN ('borrador', 'revisada', 'cerrada')),
   notas       TEXT,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ─── saldos_semanales ────────────────────────────────────────────────────
@@ -63,6 +76,7 @@ CREATE TABLE IF NOT EXISTS saldos_semanales (
   moneda       CHAR(3) NOT NULL DEFAULT 'EUR',
   revision_id  INTEGER REFERENCES revisiones_semanales(id) ON DELETE SET NULL,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (cuenta_id, semana)
 );
 
@@ -78,18 +92,21 @@ CREATE TABLE IF NOT EXISTS movimientos_previstos (
   ambito_id       INTEGER NOT NULL REFERENCES ambitos(id) ON DELETE RESTRICT,
   cuenta_id       INTEGER REFERENCES cuentas_financieras(id) ON DELETE RESTRICT,
   tipo            TEXT NOT NULL CHECK (tipo IN ('ingreso', 'gasto')),
+  estado          TEXT NOT NULL DEFAULT 'previsto'
+                    CHECK (estado IN ('previsto', 'realizado', 'cancelado')),
   concepto        TEXT NOT NULL,
   importe         NUMERIC(14,2) NOT NULL,
   moneda          CHAR(3) NOT NULL DEFAULT 'EUR',
-  fecha_prevista  DATE NOT NULL,
+  fecha_estimada  DATE NOT NULL,
   notas           TEXT,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_movimientos_previstos_ambito
   ON movimientos_previstos(ambito_id);
 CREATE INDEX IF NOT EXISTS idx_movimientos_previstos_fecha
-  ON movimientos_previstos(fecha_prevista);
+  ON movimientos_previstos(fecha_estimada);
 
 -- ─── reservas ────────────────────────────────────────────────────────────
 -- Sin ambito_id propio: se deriva vía cuenta_id → cuentas_financieras.ambito_id.
@@ -97,11 +114,14 @@ CREATE INDEX IF NOT EXISTS idx_movimientos_previstos_fecha
 CREATE TABLE IF NOT EXISTS reservas (
   id          SERIAL PRIMARY KEY,
   cuenta_id   INTEGER NOT NULL REFERENCES cuentas_financieras(id) ON DELETE RESTRICT,
-  nombre      TEXT NOT NULL,
+  concepto    TEXT NOT NULL,
+  estado      TEXT NOT NULL DEFAULT 'activa'
+                CHECK (estado IN ('activa', 'liberada', 'usada', 'cancelada')),
   importe     NUMERIC(14,2) NOT NULL,
   moneda      CHAR(3) NOT NULL DEFAULT 'EUR',
   notas       TEXT,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_reservas_cuenta
@@ -110,16 +130,21 @@ CREATE INDEX IF NOT EXISTS idx_reservas_cuenta
 -- ─── deudas ──────────────────────────────────────────────────────────────
 -- Con ambito_id propio: una deuda puede no estar ligada a ninguna cuenta.
 -- contraparte queda como texto libre — mismo criterio que movimientos_previstos.concepto.
+-- direccion (antes "tipo") evita confusión con el resto de columnas "tipo"
+-- de otras tablas; sigue siendo debo/me_deben.
 CREATE TABLE IF NOT EXISTS deudas (
   id                 SERIAL PRIMARY KEY,
   ambito_id          INTEGER NOT NULL REFERENCES ambitos(id) ON DELETE RESTRICT,
   contraparte        TEXT NOT NULL,
-  tipo               TEXT NOT NULL CHECK (tipo IN ('debo', 'me_deben')),
+  direccion          TEXT NOT NULL CHECK (direccion IN ('debo', 'me_deben')),
+  estado             TEXT NOT NULL DEFAULT 'pendiente'
+                       CHECK (estado IN ('pendiente', 'pagada', 'cobrada', 'cancelada')),
   importe            NUMERIC(14,2) NOT NULL,
   moneda             CHAR(3) NOT NULL DEFAULT 'EUR',
   fecha_vencimiento  DATE,
   notas              TEXT,
-  created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_deudas_ambito
@@ -137,8 +162,28 @@ CREATE TABLE IF NOT EXISTS saldos_apertura (
   moneda      CHAR(3) NOT NULL DEFAULT 'EUR',
   notas       TEXT,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (cuenta_id, anio)
 );
+
+-- ─── v_cuentas_saldo_actual ──────────────────────────────────────────────
+-- El saldo actual NO se persiste en cuentas_financieras: un campo cacheado
+-- sin regla de sincronización fiable se desincroniza, y en finanzas un dato
+-- falso con apariencia de verdad es peor que no tenerlo. Se deriva siempre
+-- del último snapshot de saldos_semanales.
+CREATE OR REPLACE VIEW v_cuentas_saldo_actual AS
+SELECT
+  c.*,
+  s.saldo  AS saldo_actual,
+  s.semana AS saldo_semana
+FROM cuentas_financieras c
+LEFT JOIN LATERAL (
+  SELECT saldo, semana
+  FROM saldos_semanales
+  WHERE cuenta_id = c.id
+  ORDER BY semana DESC
+  LIMIT 1
+) s ON true;
 
 INSERT INTO schema_migrations (version) VALUES ('001_finanzas_schema')
   ON CONFLICT (version) DO NOTHING;

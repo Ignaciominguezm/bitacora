@@ -18,9 +18,12 @@ psql "postgresql://ignacio_admin@<host>/finanzas_db" -f migrations/finanzas/002_
 ## 3. GRANT para finanzas_user
 
 `finanzas_user` necesita `SELECT/INSERT/UPDATE/DELETE` sobre todas las
-tablas y `USAGE, SELECT` sobre las sequences (los `SERIAL` las generan
-automáticamente por tabla). Ejecutar tras 001 y 002, y de nuevo cada vez
-que se añada una tabla nueva en una migración futura:
+tablas, `USAGE, SELECT` sobre las sequences (los `SERIAL` las generan
+automáticamente por tabla), y `SELECT` sobre la vista
+`v_cuentas_saldo_actual` (que no es una tabla — `ALL TABLES IN SCHEMA`
+en Postgres SÍ incluye las vistas, pero se deja explícito por claridad).
+Ejecutar tras 001 y 002, y de nuevo cada vez que se añada una tabla o
+vista nueva en una migración futura:
 
 ```sql
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO finanzas_user;
@@ -41,6 +44,8 @@ GRANT USAGE, SELECT ON
   saldos_semanales_id_seq, movimientos_previstos_id_seq, reservas_id_seq,
   deudas_id_seq, saldos_apertura_id_seq
 TO finanzas_user;
+
+GRANT SELECT ON v_cuentas_saldo_actual TO finanzas_user;
 ```
 
 Nota: `finanzas_user` no debería tener DELETE/UPDATE sobre `schema_migrations`

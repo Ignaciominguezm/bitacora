@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { type Ambito, hexToRgba, formatSaldo, mondayOf, addDaysStr, formatDateEs } from './shared'
+import { type Ambito, hexToRgba, formatSaldo, parseEsNumber, mondayOf, addDaysStr, formatDateEs } from './shared'
 
 interface RevisionCuenta {
   id: number
@@ -142,8 +142,11 @@ export function RevisionSemanalView({ ambitos }: { ambitos: Ambito[] }) {
   const [loadingRevision, setLoadingRevision] = useState(true)
   const [saldoInputs, setSaldoInputs] = useState<Record<number, string>>({})
   const [savingSaldoId, setSavingSaldoId] = useState<number | null>(null)
+  const [saldoErrors, setSaldoErrors] = useState<Record<number, string | null>>({})
   const [notas, setNotas] = useState('')
   const [savingNotas, setSavingNotas] = useState(false)
+  const [notasError, setNotasError] = useState<string | null>(null)
+  const [estadoError, setEstadoError] = useState<string | null>(null)
 
   const [previsiones, setPrevisiones] = useState<Prevision[]>([])
   const [reservas, setReservas] = useState<Reserva[]>([])
@@ -207,8 +210,11 @@ export function RevisionSemanalView({ ambitos }: { ambitos: Ambito[] }) {
     if (selectedAmbitoId !== null) fetchAmbitoLists(selectedAmbitoId)
   }, [selectedAmbitoId, fetchAmbitoLists])
 
-  async function ensureRevisionId(): Promise<number | null> {
-    if (revisionData?.revision?.id) return revisionData.revision.id
+  // Crea la revisión de la semana si aún no existe (revisiones nuevas no
+  // tienen id todavía) y devuelve su id, o un mensaje de error si algo
+  // falla — nunca null en silencio, para que el llamante pueda mostrarlo.
+  async function ensureRevisionId(): Promise<{ id: number } | { error: string }> {
+    if (revisionData?.revision?.id) return { id: revisionData.revision.id }
     try {
       const res = await fetch('/api/finanzas/revision', {
         method: 'POST',
@@ -216,30 +222,44 @@ export function RevisionSemanalView({ ambitos }: { ambitos: Ambito[] }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ semana })
       })
-      if (!res.ok) return null
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) return { error: data.error ?? 'No se pudo crear la revisión de esta semana' }
       setRevisionData((prev) => (prev ? { ...prev, revision: data.revision } : prev))
-      return data.revision.id as number
+      return { id: data.revision.id as number }
     } catch {
-      return null
+      return { error: 'Error de red al crear la revisión' }
     }
   }
 
   async function saveSaldo(cuentaId: number) {
-    const raw = saldoInputs[cuentaId]
-    const num = Number(raw)
-    if (raw === undefined || raw.trim() === '' || Number.isNaN(num)) return
+    const raw = saldoInputs[cuentaId] ?? ''
+    const num = parseEsNumber(raw)
+    if (num === null) {
+      setSaldoErrors((prev) => ({ ...prev, [cuentaId]: 'Importe inválido' }))
+      return
+    }
+    setSaldoErrors((prev) => ({ ...prev, [cuentaId]: null }))
     setSavingSaldoId(cuentaId)
     try {
-      const revId = await ensureRevisionId()
-      if (!revId) return
-      const res = await fetch(`/api/finanzas/revision/${revId}/saldo`, {
+      const rev = await ensureRevisionId()
+      if ('error' in rev) {
+        setSaldoErrors((prev) => ({ ...prev, [cuentaId]: rev.error }))
+        return
+      }
+      const res = await fetch(`/api/finanzas/revision/${rev.id}/saldo`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cuenta_id: cuentaId, saldo: num })
       })
-      if (res.ok) await fetchRevision(semana)
+      if (res.ok) {
+        await fetchRevision(semana)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setSaldoErrors((prev) => ({ ...prev, [cuentaId]: data.error ?? 'Error al guardar el saldo' }))
+      }
+    } catch {
+      setSaldoErrors((prev) => ({ ...prev, [cuentaId]: 'Error de red al guardar' }))
     } finally {
       setSavingSaldoId(null)
     }
@@ -247,31 +267,55 @@ export function RevisionSemanalView({ ambitos }: { ambitos: Ambito[] }) {
 
   async function saveNotas() {
     setSavingNotas(true)
+    setNotasError(null)
     try {
-      const revId = await ensureRevisionId()
-      if (!revId) return
-      await fetch(`/api/finanzas/revision/${revId}`, {
+      const rev = await ensureRevisionId()
+      if ('error' in rev) {
+        setNotasError(rev.error)
+        return
+      }
+      const res = await fetch(`/api/finanzas/revision/${rev.id}`, {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notas })
       })
-      await fetchRevision(semana)
+      if (res.ok) {
+        await fetchRevision(semana)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setNotasError(data.error ?? 'Error al guardar las notas')
+      }
+    } catch {
+      setNotasError('Error de red al guardar')
     } finally {
       setSavingNotas(false)
     }
   }
 
   async function changeEstado(nuevo: Revision['estado']) {
-    const revId = await ensureRevisionId()
-    if (!revId) return
-    await fetch(`/api/finanzas/revision/${revId}`, {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ estado: nuevo })
-    })
-    await fetchRevision(semana)
+    setEstadoError(null)
+    const rev = await ensureRevisionId()
+    if ('error' in rev) {
+      setEstadoError(rev.error)
+      return
+    }
+    try {
+      const res = await fetch(`/api/finanzas/revision/${rev.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: nuevo })
+      })
+      if (res.ok) {
+        await fetchRevision(semana)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setEstadoError(data.error ?? 'Error al cambiar el estado')
+      }
+    } catch {
+      setEstadoError('Error de red al guardar')
+    }
   }
 
   const selectedAmbito = revisionData?.ambitos.find((a) => a.id === selectedAmbitoId) ?? null
@@ -334,6 +378,7 @@ export function RevisionSemanalView({ ambitos }: { ambitos: Ambito[] }) {
             onInputChange={(id, v) => setSaldoInputs((prev) => ({ ...prev, [id]: v }))}
             onSave={saveSaldo}
             savingId={savingSaldoId}
+            errors={saldoErrors}
           />
 
           <PrevisionesBlock
@@ -365,8 +410,10 @@ export function RevisionSemanalView({ ambitos }: { ambitos: Ambito[] }) {
             onNotasChange={setNotas}
             onSaveNotas={saveNotas}
             savingNotas={savingNotas}
+            notasError={notasError}
             estado={estado}
             onChangeEstado={changeEstado}
+            estadoError={estadoError}
           />
         </div>
       ) : (
@@ -387,7 +434,8 @@ function SaldosBlock({
   saldoInputs,
   onInputChange,
   onSave,
-  savingId
+  savingId,
+  errors
 }: {
   ambito: Ambito
   cuentas: RevisionCuenta[]
@@ -396,6 +444,7 @@ function SaldosBlock({
   onInputChange: (id: number, v: string) => void
   onSave: (id: number) => void
   savingId: number | null
+  errors: Record<number, string | null>
 }) {
   return (
     <Section title="SALDOS DE LA SEMANA" color={ambito.color}>
@@ -406,39 +455,47 @@ function SaldosBlock({
       )}
       {cuentas.map((cta) => {
         const cmp = compareCuentas.find((c) => c.cuenta_id === cta.id)
+        const error = errors[cta.id]
         return (
           <div
             key={cta.id}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', border: '1px solid rgba(200,168,64,0.08)', gap: 12, flexWrap: 'wrap' }}
+            style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '8px 12px', border: '1px solid rgba(200,168,64,0.08)' }}
           >
-            <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, color: '#E8DCC8', minWidth: 140 }}>{cta.nombre}</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, color: '#E8DCC8', minWidth: 140 }}>{cta.nombre}</span>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>
-                Semana anterior:{' '}
-                <span style={{ color: '#7A6A50' }}>
-                  {cmp?.saldo_anterior !== null && cmp?.saldo_anterior !== undefined ? `${formatSaldo(cmp.saldo_anterior)} ${cta.moneda}` : '—'}
-                </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>
+                  Semana anterior:{' '}
+                  <span style={{ color: '#7A6A50' }}>
+                    {cmp?.saldo_anterior !== null && cmp?.saldo_anterior !== undefined ? `${formatSaldo(cmp.saldo_anterior)} ${cta.moneda}` : '—'}
+                  </span>
+                </div>
+                {cmp && cmp.delta !== null && (
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: deltaColor(cmp.delta) }}>
+                    {deltaLabel(cmp.delta)}
+                  </span>
+                )}
+                <input
+                  value={saldoInputs[cta.id] ?? ''}
+                  onChange={(e) => onInputChange(cta.id, e.target.value)}
+                  placeholder="0,00"
+                  style={{ ...inputStyle, width: 110, textAlign: 'right', borderColor: error ? 'rgba(248,113,113,0.5)' : undefined }}
+                />
+                <button
+                  onClick={() => onSave(cta.id)}
+                  disabled={savingId === cta.id}
+                  style={{ ...smallBtn, color: '#C8A840', borderColor: 'rgba(200,168,64,0.35)', opacity: savingId === cta.id ? 0.5 : 1 }}
+                >
+                  {savingId === cta.id ? '...' : 'Guardar'}
+                </button>
               </div>
-              {cmp && cmp.delta !== null && (
-                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: deltaColor(cmp.delta) }}>
-                  {deltaLabel(cmp.delta)}
-                </span>
-              )}
-              <input
-                value={saldoInputs[cta.id] ?? ''}
-                onChange={(e) => onInputChange(cta.id, e.target.value)}
-                placeholder="0.00"
-                style={{ ...inputStyle, width: 110, textAlign: 'right' }}
-              />
-              <button
-                onClick={() => onSave(cta.id)}
-                disabled={savingId === cta.id}
-                style={{ ...smallBtn, color: '#C8A840', borderColor: 'rgba(200,168,64,0.35)', opacity: savingId === cta.id ? 0.5 : 1 }}
-              >
-                {savingId === cta.id ? '...' : 'Guardar'}
-              </button>
             </div>
+            {error && (
+              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#f87171', alignSelf: 'flex-end' }}>
+                {error}
+              </span>
+            )}
           </div>
         )
       })}
@@ -466,9 +523,19 @@ function PrevisionesBlock({
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10))
   const [cuentaId, setCuentaId] = useState<number | ''>('')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function submit() {
-    if (!concepto.trim() || !importe || Number.isNaN(Number(importe)) || !fecha) return
+    if (!concepto.trim() || !fecha) {
+      setError('Concepto y fecha son obligatorios')
+      return
+    }
+    const importeNum = parseEsNumber(importe)
+    if (importeNum === null) {
+      setError('Importe inválido')
+      return
+    }
+    setError(null)
     setSaving(true)
     try {
       const res = await fetch('/api/finanzas/previsiones', {
@@ -480,14 +547,19 @@ function PrevisionesBlock({
           cuenta_id: cuentaId === '' ? null : cuentaId,
           tipo,
           concepto: concepto.trim(),
-          importe: Number(importe),
+          importe: importeNum,
           fecha_estimada: fecha
         })
       })
       if (res.ok) {
         setConcepto(''); setImporte(''); setCuentaId(''); setAdding(false)
         onRefresh()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setError(data.error ?? 'Error al guardar')
       }
+    } catch {
+      setError('Error de red')
     } finally {
       setSaving(false)
     }
@@ -551,6 +623,7 @@ function PrevisionesBlock({
           <button onClick={submit} disabled={saving} style={{ ...smallBtn, color: '#C8A840', borderColor: 'rgba(200,168,64,0.35)' }}>
             {saving ? '...' : 'Añadir'}
           </button>
+          {error && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#f87171', alignSelf: 'center' }}>{error}</span>}
         </div>
       )}
     </Section>
@@ -575,21 +648,36 @@ function ReservasBlock({
   const [importe, setImporte] = useState('')
   const [cuentaId, setCuentaId] = useState<number | ''>('')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function submit() {
-    if (!concepto.trim() || !importe || Number.isNaN(Number(importe)) || cuentaId === '') return
+    if (!concepto.trim() || cuentaId === '') {
+      setError('Cuenta y concepto son obligatorios')
+      return
+    }
+    const importeNum = parseEsNumber(importe)
+    if (importeNum === null) {
+      setError('Importe inválido')
+      return
+    }
+    setError(null)
     setSaving(true)
     try {
       const res = await fetch('/api/finanzas/reservas', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cuenta_id: cuentaId, concepto: concepto.trim(), importe: Number(importe) })
+        body: JSON.stringify({ cuenta_id: cuentaId, concepto: concepto.trim(), importe: importeNum })
       })
       if (res.ok) {
         setConcepto(''); setImporte(''); setCuentaId(''); setAdding(false)
         onRefresh()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setError(data.error ?? 'Error al guardar')
       }
+    } catch {
+      setError('Error de red')
     } finally {
       setSaving(false)
     }
@@ -645,6 +733,7 @@ function ReservasBlock({
           <button onClick={submit} disabled={saving} style={{ ...smallBtn, color: '#C8A840', borderColor: 'rgba(200,168,64,0.35)' }}>
             {saving ? '...' : 'Añadir'}
           </button>
+          {error && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#f87171', alignSelf: 'center' }}>{error}</span>}
         </div>
       )}
     </Section>
@@ -668,9 +757,19 @@ function DeudasBlock({
   const [importe, setImporte] = useState('')
   const [vencimiento, setVencimiento] = useState('')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function submit() {
-    if (!contraparte.trim() || !importe || Number.isNaN(Number(importe))) return
+    if (!contraparte.trim()) {
+      setError('Contraparte es obligatoria')
+      return
+    }
+    const importeNum = parseEsNumber(importe)
+    if (importeNum === null) {
+      setError('Importe inválido')
+      return
+    }
+    setError(null)
     setSaving(true)
     try {
       const res = await fetch('/api/finanzas/deudas', {
@@ -681,14 +780,19 @@ function DeudasBlock({
           ambito_id: ambito.id,
           contraparte: contraparte.trim(),
           direccion,
-          importe: Number(importe),
+          importe: importeNum,
           fecha_vencimiento: vencimiento || null
         })
       })
       if (res.ok) {
         setContraparte(''); setImporte(''); setVencimiento(''); setAdding(false)
         onRefresh()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setError(data.error ?? 'Error al guardar')
       }
+    } catch {
+      setError('Error de red')
     } finally {
       setSaving(false)
     }
@@ -749,6 +853,7 @@ function DeudasBlock({
           <button onClick={submit} disabled={saving} style={{ ...smallBtn, color: '#C8A840', borderColor: 'rgba(200,168,64,0.35)' }}>
             {saving ? '...' : 'Añadir'}
           </button>
+          {error && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#f87171', alignSelf: 'center' }}>{error}</span>}
         </div>
       )}
     </Section>
@@ -761,16 +866,20 @@ function NotasEstadoBlock({
   onNotasChange,
   onSaveNotas,
   savingNotas,
+  notasError,
   estado,
-  onChangeEstado
+  onChangeEstado,
+  estadoError
 }: {
   ambito: Ambito
   notas: string
   onNotasChange: (v: string) => void
   onSaveNotas: () => void
   savingNotas: boolean
+  notasError: string | null
   estado: Revision['estado']
   onChangeEstado: (e: Revision['estado']) => void
+  estadoError: string | null
 }) {
   return (
     <Section title="NOTAS Y ESTADO DE LA REVISIÓN" color={ambito.color}>
@@ -784,6 +893,7 @@ function NotasEstadoBlock({
           style={{ ...inputStyle, width: '100%', resize: 'vertical', fontFamily: 'JetBrains Mono, monospace' }}
         />
         {savingNotas && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>Guardando notas...</span>}
+        {notasError && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#f87171' }}>{notasError}</span>}
 
         <div style={{ display: 'flex', gap: 0, marginTop: 4 }}>
           {ESTADOS_REVISION.map((e, i) => (
@@ -806,6 +916,7 @@ function NotasEstadoBlock({
             </button>
           ))}
         </div>
+        {estadoError && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#f87171' }}>{estadoError}</span>}
       </div>
     </Section>
   )

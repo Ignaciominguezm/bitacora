@@ -17,6 +17,17 @@ export function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`
 }
 
+// Acepta tanto "1313.25" como el formato español "1313,25" (y "1.313,25"
+// con separador de miles). Devuelve null si no es un número válido, en vez
+// de NaN — así el llamante nunca confunde "0 inválido" con "sin valor".
+export function parseEsNumber(raw: string): number | null {
+  const trimmed = raw.trim()
+  if (trimmed === '') return null
+  const normalized = trimmed.includes(',') ? trimmed.replace(/\./g, '').replace(',', '.') : trimmed
+  const n = Number(normalized)
+  return Number.isNaN(n) ? null : n
+}
+
 export function formatSaldo(saldo: string | number | null): string {
   if (saldo === null) return '—'
   const n = typeof saldo === 'number' ? saldo : Number(saldo)

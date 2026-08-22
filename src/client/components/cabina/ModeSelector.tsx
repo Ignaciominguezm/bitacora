@@ -11,7 +11,7 @@ interface Props {
 
 export function ModeSelector({ value, onChange, disabled }: Props) {
   return (
-    <div style={{ display: 'flex', gap: 4 }} role="radiogroup" aria-label="Modo">
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }} role="radiogroup" aria-label="Modo">
       {OPTIONS.map((opt) => {
         const active = opt === value
         return (

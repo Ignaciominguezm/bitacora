@@ -11,7 +11,7 @@ interface Props {
 
 export function ScopeSelector({ value, onChange, disabled }: Props) {
   return (
-    <div style={{ display: 'flex', gap: 4 }} role="radiogroup" aria-label="Ámbito">
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }} role="radiogroup" aria-label="Ámbito">
       {OPTIONS.map((opt) => {
         const active = opt === value
         return (

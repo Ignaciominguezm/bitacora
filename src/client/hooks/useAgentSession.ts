@@ -103,7 +103,10 @@ export function useAgentSession() {
         created_at: data.created_at, updated_at: data.updated_at
       }
       setSessions((prev) => [summary, ...prev.filter((s) => s.id !== id)])
-      if (activeId === id) setTitle(data.title)
+      // activeIdRef, no el `activeId` de estado: este closure puede venir de
+      // un render donde activeId todavía era null (primer mensaje de una
+      // sesión recién creada) aunque la sesión activa real ya sea `id`.
+      if (activeIdRef.current === id) setTitle(data.title)
     } catch { /* no crítico — el título/orden local sigue siendo razonable */ }
   }
 

@@ -110,31 +110,58 @@ cabinaRoutes.post('/session/:id/message', async (c) => {
 
   return streamSSE(c, async (stream) => {
     let fullContent = ''
+    // Si el cliente se desconecta a media respuesta, writeSSE empieza a
+    // lanzar. Dejamos de escribir al stream pero seguimos consumiendo el
+    // gateway igual — la respuesta se persiste completa aunque nadie la
+    // esté viendo ya, en vez de perderse.
+    let clientConnected = true
+
     try {
       for await (const chunk of getGateway().send(text, { ambito, modo }, { sessionId, history })) {
         fullContent += chunk
-        await stream.writeSSE({ data: chunk })
+        if (clientConnected) {
+          try {
+            await stream.writeSSE({ data: chunk })
+          } catch {
+            clientConnected = false
+          }
+        }
       }
     } catch (err) {
       fullContent = fullContent || `Error: ${err instanceof Error ? err.message : 'Error del agente'}`
-      await stream.writeSSE({ data: fullContent })
+      if (clientConnected) {
+        try {
+          await stream.writeSSE({ data: fullContent })
+        } catch {
+          clientConnected = false
+        }
+      }
     }
 
-    await db.query(
-      `INSERT INTO cabina_messages (session_id, role, content, ambito, modo) VALUES ($1, 'assistant', $2, $3, $4)`,
-      [sessionId, fullContent, ambito, modo]
-    )
+    // Se persiste siempre que haya contenido (incluido el texto de error de
+    // fallback de arriba), esté o no el cliente todavía conectado — así el
+    // corte de conexión nunca se traduce en una respuesta perdida.
+    if (fullContent) {
+      await db.query(
+        `INSERT INTO cabina_messages (session_id, role, content, ambito, modo) VALUES ($1, 'assistant', $2, $3, $4)`,
+        [sessionId, fullContent, ambito, modo]
+      )
 
-    // updated_at se toca en cada turno (no hay trigger) para que el
-    // historial ordene por recencia; ambito/modo quedan como "actual" de la
-    // sesión para poder reanudarla.
-    await db.query(
-      `UPDATE cabina_sessions
-       SET updated_at = now(), ambito = $1, modo = $2, title = COALESCE($3, title)
-       WHERE id = $4`,
-      [ambito, modo, autoTitle, sessionId]
-    )
+      // updated_at se toca en cada turno (no hay trigger) para que el
+      // historial ordene por recencia; ambito/modo quedan como "actual" de
+      // la sesión para poder reanudarla.
+      await db.query(
+        `UPDATE cabina_sessions
+         SET updated_at = now(), ambito = $1, modo = $2, title = COALESCE($3, title)
+         WHERE id = $4`,
+        [ambito, modo, autoTitle, sessionId]
+      )
+    }
 
-    await stream.writeSSE({ data: '[DONE]' })
+    if (clientConnected) {
+      try {
+        await stream.writeSSE({ data: '[DONE]' })
+      } catch { /* cliente ya se fue */ }
+    }
   })
 })

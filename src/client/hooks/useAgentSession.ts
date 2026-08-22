@@ -23,6 +23,12 @@ export function useAgentSession() {
   const [error, setError] = useState<string | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
+  // Permite a sendMessage comprobar, tras un await, si el usuario sigue en
+  // la misma sesión antes de tocar `messages` — evita que una respuesta (o
+  // un marcado de error) de una sesión abandonada corrompa la que se ve
+  // ahora tras un cambio de sesión a media respuesta.
+  const activeIdRef = useRef<string | null>(null)
+  useEffect(() => { activeIdRef.current = activeId }, [activeId])
 
   useEffect(() => {
     let cancelled = false
@@ -161,24 +167,36 @@ export function useAgentSession() {
           if (data === '[DONE]') break outer
           if (data) {
             fullContent += data
-            setMessages((prev) => {
-              const updated = [...prev]
-              updated[updated.length - 1] = { role: 'assistant', content: fullContent, ambito, modo }
-              return updated
-            })
+            if (activeIdRef.current === sessionId) {
+              setMessages((prev) => {
+                const updated = [...prev]
+                updated[updated.length - 1] = { role: 'assistant', content: fullContent, ambito, modo }
+                return updated
+              })
+            }
           }
         }
       }
 
-      await refreshSessionMeta(sessionId)
+      // El servidor persiste igual aunque nos hayamos ido a otra sesión —
+      // solo refrescamos metadatos (título/orden) si seguimos mirándola.
+      if (activeIdRef.current === sessionId) await refreshSessionMeta(sessionId)
     } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return
-      setMessages((prev) => {
-        const updated = [...prev]
-        updated[updated.length - 1] = { role: 'assistant', content: 'Error al conectar con Cabina Unria.', ambito, modo }
-        return updated
-      })
-      setError('Error al enviar el mensaje')
+      const isAbort = err instanceof Error && err.name === 'AbortError'
+      // El servidor sigue consumiendo el gateway y persiste la respuesta
+      // aunque el stream se corte aquí (red o abort por cambio de sesión) —
+      // ver cabina.ts. Aquí solo marcamos la burbuja local como incompleta,
+      // sin descartar lo que ya se había recibido, y solo si seguimos en la
+      // misma sesión que originó el envío.
+      if (activeIdRef.current === sessionId) {
+        setMessages((prev) => {
+          const updated = [...prev]
+          const last = updated[updated.length - 1]
+          if (last?.role === 'assistant') updated[updated.length - 1] = { ...last, incomplete: true }
+          return updated
+        })
+      }
+      if (!isAbort) setError('Error al enviar el mensaje')
     } finally {
       setStreaming(false)
       abortRef.current = null

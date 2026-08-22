@@ -91,8 +91,8 @@ function dateInputStyle(): React.CSSProperties {
 function pillStyle(active: boolean): React.CSSProperties {
   return {
     padding: '5px 16px',
-    background: active ? 'rgba(200,168,64,0.2)' : 'transparent',
-    border: active ? '1px solid rgba(200,168,64,0.5)' : '1px solid rgba(200,168,64,0.15)',
+    background: active ? 'rgba(200,168,64,0.32)' : 'transparent',
+    border: active ? '1px solid #C8A840' : '1px solid rgba(200,168,64,0.15)',
     color: active ? '#C8A840' : '#5A4A30',
     fontFamily: 'JetBrains Mono, monospace',
     fontSize: 11,

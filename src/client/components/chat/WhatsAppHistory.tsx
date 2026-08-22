@@ -81,7 +81,7 @@ export function WhatsAppHistory() {
             <div
               key={c.session_id}
               onClick={() => selectContact(c)}
-              style={{ padding: '10px 12px', borderBottom: '1px solid rgba(200,168,64,0.06)', cursor: 'pointer', background: selected?.session_id === c.session_id ? 'rgba(74,222,128,0.08)' : 'transparent', borderLeft: `2px solid ${selected?.session_id === c.session_id ? ACCENT_WA : 'transparent'}`, transition: 'all 0.1s' }}
+              style={{ padding: '10px 12px', borderBottom: '1px solid rgba(200,168,64,0.06)', cursor: 'pointer', background: selected?.session_id === c.session_id ? 'rgba(74,222,128,0.22)' : 'transparent', borderLeft: `2px solid ${selected?.session_id === c.session_id ? ACCENT_WA : 'transparent'}`, transition: 'all 0.1s' }}
               onMouseEnter={(e) => { if (selected?.session_id !== c.session_id) (e.currentTarget as HTMLDivElement).style.background = 'rgba(74,222,128,0.04)' }}
               onMouseLeave={(e) => { if (selected?.session_id !== c.session_id) (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
             >

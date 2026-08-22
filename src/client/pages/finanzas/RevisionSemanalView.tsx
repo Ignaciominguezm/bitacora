@@ -166,8 +166,11 @@ export function RevisionSemanalView({ ambitos }: { ambitos: Ambito[] }) {
       ])
       const revData: RevisionResponse = await revRes.json()
       const cmpData: CompareResponse = await cmpRes.json()
-      setRevisionData(revData)
-      setCompareData(cmpData)
+      // Respuestas de error (p.ej. 503 sin FINANZAS_DB_URL) no traen
+      // `ambitos` — sin este fallback, los .find()/.map() de más abajo
+      // revientan el componente entero en vez de degradar a "sin datos".
+      setRevisionData({ ...revData, ambitos: revData.ambitos ?? [] })
+      setCompareData({ ...cmpData, ambitos: cmpData.ambitos ?? [] })
       setNotas(revData.revision?.notas ?? '')
 
       const inputs: Record<number, string> = {}
@@ -353,8 +356,8 @@ export function RevisionSemanalView({ ambitos }: { ambitos: Ambito[] }) {
                 fontSize: 12,
                 letterSpacing: '0.06em',
                 color: active ? '#E8DCC8' : '#5A4A30',
-                background: active ? hexToRgba(a.color, 0.12) : 'transparent',
-                border: `1px solid ${active ? hexToRgba(a.color, 0.4) : 'rgba(200,168,64,0.15)'}`,
+                background: active ? hexToRgba(a.color, 0.32) : 'transparent',
+                border: `1px solid ${active ? a.color : 'rgba(200,168,64,0.15)'}`,
                 padding: '8px 16px',
                 cursor: 'pointer'
               }}
@@ -906,8 +909,8 @@ function NotasEstadoBlock({
                 padding: '6px 16px',
                 cursor: 'pointer',
                 color: estado === e ? '#C8A840' : '#5A4A30',
-                background: estado === e ? 'rgba(200,168,64,0.15)' : 'transparent',
-                border: estado === e ? '1px solid rgba(200,168,64,0.4)' : '1px solid rgba(200,168,64,0.12)',
+                background: estado === e ? 'rgba(200,168,64,0.32)' : 'transparent',
+                border: estado === e ? '1px solid #C8A840' : '1px solid rgba(200,168,64,0.12)',
                 borderRadius: i === 0 ? '3px 0 0 3px' : i === ESTADOS_REVISION.length - 1 ? '0 3px 3px 0' : 0,
                 marginLeft: i === 0 ? 0 : -1
               }}
@@ -979,8 +982,8 @@ function InfoButton({ title, body }: { title: string; body: string }) {
           width: 15,
           height: 15,
           borderRadius: '50%',
-          border: `1px solid ${open ? 'rgba(200,168,64,0.6)' : 'rgba(200,168,64,0.3)'}`,
-          background: open ? 'rgba(200,168,64,0.15)' : 'transparent',
+          border: `1px solid ${open ? '#C8A840' : 'rgba(200,168,64,0.3)'}`,
+          background: open ? 'rgba(200,168,64,0.32)' : 'transparent',
           color: open ? '#C8A840' : '#7A6A50',
           fontFamily: 'JetBrains Mono, monospace',
           fontSize: 9,

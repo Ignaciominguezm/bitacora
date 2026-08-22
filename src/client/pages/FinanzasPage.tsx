@@ -47,8 +47,8 @@ export function FinanzasPage() {
                 padding: '6px 16px',
                 cursor: 'pointer',
                 color: view === t.id ? '#C8A840' : '#5A4A30',
-                background: view === t.id ? 'rgba(200,168,64,0.15)' : 'transparent',
-                border: view === t.id ? '1px solid rgba(200,168,64,0.4)' : '1px solid rgba(200,168,64,0.15)',
+                background: view === t.id ? 'rgba(200,168,64,0.32)' : 'transparent',
+                border: view === t.id ? '1px solid #C8A840' : '1px solid rgba(200,168,64,0.15)',
                 borderRadius: i === 0 ? '3px 0 0 3px' : i === TABS.length - 1 ? '0 3px 3px 0' : 0,
                 marginLeft: i === 0 ? 0 : -1
               }}

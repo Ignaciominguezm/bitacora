@@ -11,8 +11,8 @@ export function CRMPage() {
 
   const toggleBtn = (v: View, label: string) => ({
     padding: '5px 16px',
-    background: view === v ? 'rgba(200,168,64,0.2)' : 'transparent',
-    border: view === v ? '1px solid rgba(200,168,64,0.5)' : '1px solid rgba(200,168,64,0.15)',
+    background: view === v ? 'rgba(200,168,64,0.32)' : 'transparent',
+    border: view === v ? '1px solid #C8A840' : '1px solid rgba(200,168,64,0.15)',
     color: view === v ? '#C8A840' : '#5A4A30',
     fontFamily: 'JetBrains Mono, monospace' as const,
     fontSize: 11,

@@ -22,6 +22,14 @@
   box-sizing: border-box;
 }
 
+html {
+  /* Toda la app fija fontSize en px inline (sin rem/em), así que un
+     font-size en la raíz no cascadearía a nada. zoom escala el
+     renderizado completo (texto, iconos, paddings) como un zoom nativo
+     del navegador — es el único punto de ajuste real de "capa base". */
+  zoom: 1.15;
+}
+
 html,
 body {
   margin: 0;

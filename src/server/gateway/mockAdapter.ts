@@ -1,24 +1,15 @@
 import type { AgentContext, AgentGateway, AgentSessionRef } from './types.js'
-
-const AMBITO_LABEL: Record<AgentContext['ambito'], string> = {
-  proyectos_personales: 'Proyectos personales',
-  clientes: 'Clientes',
-  ocio: 'Ocio'
-}
-
-const MODO_LABEL: Record<AgentContext['modo'], string> = {
-  diseno: 'Diseño',
-  implementacion: 'Implementación',
-  revision: 'Revisión'
-}
+import { AMBITO_LABEL, MODO_LABEL } from './labels.js'
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-// Adaptador provisional. No hay endpoint real de OpenClaw alcanzable desde
-// este repo (verificado antes de esta entrega) — este mock es el único
-// AgentGateway hasta que exista un adaptador real que hable con OpenClaw.
+// Adaptador provisional. Se usa cuando CABINA_GATEWAY no está en
+// 'openclaw-cli', y también como respaldo automático (ver
+// gateway/fallbackAdapter.ts) si OpenClawCliAdapter falla en tiempo de
+// ejecución — el propio texto de respuesta ya deja claro que es una
+// simulación, así que no hace falta tocar la UI para comunicar el modo.
 export class MockAdapter implements AgentGateway {
   async *send(message: string, context: AgentContext, session: AgentSessionRef): AsyncIterable<string> {
     const reply =

@@ -13,6 +13,7 @@ export interface AgentMessage {
 
 export interface AgentSessionRef {
   sessionId: string
+  title: string
   history: AgentMessage[]
 }
 

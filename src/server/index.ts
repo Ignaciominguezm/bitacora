@@ -8,6 +8,7 @@ import { healthRoutes } from './routes/health.js'
 import { teamRoutes } from './routes/team.js'
 import { tasksRoutes } from './routes/tasks.js'
 import { chatRoutes } from './routes/chat.js'
+import { cabinaRoutes } from './routes/cabina.js'
 import { whatsappRoutes } from './routes/whatsapp.js'
 import { crmRoutes } from './routes/crm.js'
 import { voiceRoutes } from './routes/voice.js'
@@ -43,6 +44,7 @@ api.route('/health', healthRoutes)
 api.route('/team', teamRoutes)
 api.route('/tasks', tasksRoutes)
 api.route('/chat', chatRoutes)
+api.route('/cabina', cabinaRoutes)
 api.route('/whatsapp', whatsappRoutes)
 api.route('/crm', crmRoutes)
 api.route('/voice', voiceRoutes)

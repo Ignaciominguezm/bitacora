@@ -35,5 +35,5 @@ CREATE TABLE IF NOT EXISTS cabina_messages (
 
 CREATE INDEX IF NOT EXISTS idx_cabina_messages_session ON cabina_messages(session_id, id);
 
-INSERT INTO schema_migrations (version) VALUES ('cabina_001')
+INSERT INTO schema_migrations (version) VALUES ('001_cabina_schema')
   ON CONFLICT (version) DO NOTHING;

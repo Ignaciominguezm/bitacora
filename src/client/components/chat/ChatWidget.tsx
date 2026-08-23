@@ -357,7 +357,7 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
             }}
             className={streaming ? 'pulse-dot' : undefined}
           />
-          <span style={{ fontFamily: 'Cinzel, serif', fontSize: 11, color: accentColor, letterSpacing: '0.08em' }}>
+          <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-sm)', color: accentColor, letterSpacing: '0.08em' }}>
             {label.toUpperCase()}
           </span>
         </div>
@@ -368,7 +368,7 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
             border: 'none',
             color: '#5A4A30',
             fontFamily: 'JetBrains Mono, monospace',
-            fontSize: 10,
+            fontSize: 'var(--text-xs)',
             cursor: 'pointer',
             padding: '2px 6px',
             letterSpacing: '0.05em'
@@ -392,7 +392,7 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
               justifyContent: 'center',
               color: '#5A4A30',
               fontFamily: 'JetBrains Mono, monospace',
-              fontSize: 11
+              fontSize: 'var(--text-sm)'
             }}
           >
             {label} en espera
@@ -414,7 +414,7 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
                 background: msg.role === 'user' ? `${accentColor}18` : '#13100A',
                 border: `1px solid ${msg.role === 'user' ? accentColor + '35' : 'rgba(200,168,64,0.1)'}`,
                 fontFamily: 'DM Sans, sans-serif',
-                fontSize: 13,
+                fontSize: 'var(--text-md)',
                 color: msg.pending ? '#5A4A30' : '#E8DCC8',
                 lineHeight: 1.5,
                 wordBreak: 'break-word',
@@ -465,7 +465,7 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
             border: `1px solid ${accentColor}25`,
             color: '#E8DCC8',
             fontFamily: 'DM Sans, sans-serif',
-            fontSize: 13,
+            fontSize: 'var(--text-md)',
             outline: 'none',
             resize: 'none',
             minHeight: 34,

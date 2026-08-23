@@ -207,7 +207,7 @@ export function UnriarChat() {
         <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(200,168,64,0.1)', flexShrink: 0 }}>
           <button
             onClick={newConversation}
-            style={{ width: '100%', padding: '7px 12px', background: `${ACCENT}0f`, border: `1px solid ${ACCENT}40`, color: ACCENT, fontFamily: 'JetBrains Mono, monospace', fontSize: 11, cursor: 'pointer', letterSpacing: '0.06em', transition: 'background 0.15s' }}
+            style={{ width: '100%', padding: '7px 12px', background: `${ACCENT}0f`, border: `1px solid ${ACCENT}40`, color: ACCENT, fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', cursor: 'pointer', letterSpacing: '0.06em', transition: 'background 0.15s' }}
             onMouseEnter={(e) => (e.currentTarget.style.background = `${ACCENT}20`)}
             onMouseLeave={(e) => (e.currentTarget.style.background = `${ACCENT}0f`)}
           >
@@ -217,7 +217,7 @@ export function UnriarChat() {
 
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {sessions.length === 0 ? (
-            <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>Sin conversaciones</div>
+            <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>Sin conversaciones</div>
           ) : sessions.map((s) => (
             <div
               key={s.session_id}
@@ -226,8 +226,8 @@ export function UnriarChat() {
               onMouseEnter={(e) => { if (activeId !== s.session_id) (e.currentTarget as HTMLDivElement).style.background = `${ACCENT}08` }}
               onMouseLeave={(e) => { if (activeId !== s.session_id) (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
             >
-              <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, color: '#E8DCC8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</div>
-              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30', marginTop: 2 }}>{fmtDate(s.updated_at)}</div>
+              <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-base)', color: '#E8DCC8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</div>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30', marginTop: 2 }}>{fmtDate(s.updated_at)}</div>
             </div>
           ))}
         </div>
@@ -236,7 +236,7 @@ export function UnriarChat() {
       {/* Right panel */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {!activeId ? (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)' }}>
             Selecciona o crea una conversación
           </div>
         ) : (
@@ -246,12 +246,12 @@ export function UnriarChat() {
               <button
                 className="conv-mobile-back"
                 onClick={() => setShowList(true)}
-                style={{ background: 'transparent', border: 'none', color: '#5A4A30', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontSize: 14, padding: '0 4px' }}
+                style={{ background: 'transparent', border: 'none', color: '#5A4A30', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-lg)', padding: '0 4px' }}
               >
                 ←
               </button>
               <div className={streaming ? 'pulse-dot' : undefined} style={{ width: 6, height: 6, borderRadius: '50%', background: ACCENT, opacity: streaming ? 1 : 0.4, flexShrink: 0 }} />
-              <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, color: '#E8DCC8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-md)', color: '#E8DCC8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {activeTitle}
               </span>
             </div>
@@ -259,13 +259,13 @@ export function UnriarChat() {
             {/* Messages */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
               {messages.length === 0 && (
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, minHeight: 100 }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', minHeight: 100 }}>
                   Unriar en espera
                 </div>
               )}
               {messages.map((msg, i) => (
                 <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                  <div style={{ maxWidth: '80%', padding: '8px 12px', background: msg.role === 'user' ? `${ACCENT}18` : '#13100A', border: `1px solid ${msg.role === 'user' ? ACCENT + '40' : 'rgba(200,168,64,0.12)'}`, fontFamily: 'DM Sans, sans-serif', fontSize: 13, color: msg.pending ? '#5A4A30' : '#E8DCC8', lineHeight: 1.5, wordBreak: 'break-word', fontStyle: msg.pending ? 'italic' : 'normal' }}>
+                  <div style={{ maxWidth: '80%', padding: '8px 12px', background: msg.role === 'user' ? `${ACCENT}18` : '#13100A', border: `1px solid ${msg.role === 'user' ? ACCENT + '40' : 'rgba(200,168,64,0.12)'}`, fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-md)', color: msg.pending ? '#5A4A30' : '#E8DCC8', lineHeight: 1.5, wordBreak: 'break-word', fontStyle: msg.pending ? 'italic' : 'normal' }}>
                     {msg.pending ? (
                       <span>{msg.content}</span>
                     ) : msg.role === 'user' ? (
@@ -292,7 +292,7 @@ export function UnriarChat() {
                 placeholder="Mensaje a Unriar..."
                 rows={1}
                 disabled={streaming}
-                style={{ flex: 1, padding: '8px 12px', background: '#13100A', border: `1px solid ${ACCENT}30`, color: '#E8DCC8', fontFamily: 'DM Sans, sans-serif', fontSize: 13, outline: 'none', resize: 'none', minHeight: 36, maxHeight: 100, lineHeight: 1.5, opacity: streaming ? 0.6 : 1 }}
+                style={{ flex: 1, padding: '8px 12px', background: '#13100A', border: `1px solid ${ACCENT}30`, color: '#E8DCC8', fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-md)', outline: 'none', resize: 'none', minHeight: 36, maxHeight: 100, lineHeight: 1.5, opacity: streaming ? 0.6 : 1 }}
                 onFocus={(e) => (e.currentTarget.style.borderColor = `${ACCENT}70`)}
                 onBlur={(e) => (e.currentTarget.style.borderColor = `${ACCENT}30`)}
               />

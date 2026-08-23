@@ -135,10 +135,10 @@ function MetricRow({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5A4A30', letterSpacing: '0.08em' }}>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#5A4A30', letterSpacing: '0.08em' }}>
           {label}
         </span>
-        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color }}>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color }}>
           {detail}
         </span>
       </div>
@@ -188,18 +188,18 @@ export function SistemaPage() {
       }}
     >
       {/* Page header */}
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ fontFamily: 'Cinzel, serif', fontSize: 18, color: '#C8A840', letterSpacing: '0.1em', margin: 0 }}>
+          <h1 style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-xl)', color: '#C8A840', letterSpacing: '0.1em', margin: 0 }}>
             SISTEMA
           </h1>
-          <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#5A4A30', margin: '4px 0 0' }}>
+          <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#5A4A30', margin: '4px 0 0' }}>
             Monitorización de infraestructura
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginRight: 'var(--notif-gutter)' }}>
           {lastUpdated && (
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>
               {lastUpdated.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </span>
           )}
@@ -207,7 +207,7 @@ export function SistemaPage() {
             onClick={fetchHealth}
             style={{
               fontFamily: 'JetBrains Mono, monospace',
-              fontSize: 10,
+              fontSize: 'var(--text-xs)',
               color: '#C8A840',
               background: 'rgba(200,168,64,0.08)',
               border: '1px solid rgba(200,168,64,0.25)',
@@ -222,14 +222,14 @@ export function SistemaPage() {
       </div>
 
       {loading ? (
-        <div style={{ color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>
+        <div style={{ color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)' }}>
           Cargando...
         </div>
       ) : (
         <>
           {/* Section 1 — VPS Servers */}
           <section>
-            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5A4A30', letterSpacing: '0.12em', marginBottom: 16 }}>
+            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#5A4A30', letterSpacing: '0.12em', marginBottom: 16 }}>
               SERVIDORES VPS
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 16 }}>
@@ -242,7 +242,7 @@ export function SistemaPage() {
           {/* Section 2 — Push-based stations */}
           {pushServers.length > 0 && (
             <section>
-              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5A4A30', letterSpacing: '0.12em', marginBottom: 16 }}>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#5A4A30', letterSpacing: '0.12em', marginBottom: 16 }}>
                 ESTACIONES
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: 16 }}>
@@ -255,7 +255,7 @@ export function SistemaPage() {
 
           {/* Section 3 — Services */}
           <section>
-            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5A4A30', letterSpacing: '0.12em', marginBottom: 12 }}>
+            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#5A4A30', letterSpacing: '0.12em', marginBottom: 12 }}>
               SERVICIOS
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -273,15 +273,15 @@ export function SistemaPage() {
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ width: 7, height: 7, borderRadius: '50%', background: SVC_STATUS_COLOR[svc.status], flexShrink: 0 }} />
-                    <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, color: '#E8DCC8' }}>
+                    <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-md)', color: '#E8DCC8' }}>
                       {SERVICE_LABELS[svc.name] ?? svc.name}
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: SVC_STATUS_COLOR[svc.status] }}>
+                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: SVC_STATUS_COLOR[svc.status] }}>
                       {SVC_STATUS_LABEL[svc.status]}
                     </span>
-                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#5A4A30', minWidth: 52, textAlign: 'right' }}>
+                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#5A4A30', minWidth: 52, textAlign: 'right' }}>
                       {svc.latency > 0 ? `${svc.latency}ms` : '—'}
                     </span>
                   </div>
@@ -313,18 +313,18 @@ function ServerCard({ server: srv }: { server: ServerData }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: ok ? '#4ade80' : '#f87171', flexShrink: 0 }} />
-          <span style={{ fontFamily: 'Cinzel, serif', fontSize: 12, color: '#C8A840', letterSpacing: '0.06em' }}>
+          <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-base)', color: '#C8A840', letterSpacing: '0.06em' }}>
             {srv.name}
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {srv.uptime_seconds !== undefined && (
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5A4A30' }}>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#5A4A30' }}>
               ↑ {formatUptime(srv.uptime_seconds)}
             </span>
           )}
           {srv.latency_ms !== undefined && (
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5A4A30' }}>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#5A4A30' }}>
               {srv.latency_ms}ms
             </span>
           )}
@@ -332,7 +332,7 @@ function ServerCard({ server: srv }: { server: ServerData }) {
       </div>
 
       {!ok ? (
-        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#f87171' }}>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#f87171' }}>
           Sin conexión
         </span>
       ) : (
@@ -358,14 +358,14 @@ function ServerCard({ server: srv }: { server: ServerData }) {
           )}
           {srv.containers && srv.containers.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 2 }}>
-              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5A4A30', letterSpacing: '0.08em' }}>
+              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#5A4A30', letterSpacing: '0.08em' }}>
                 CONTAINERS
               </span>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
                 {srv.containers.map((ct) => (
                   <div key={ct.name} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                     <div style={{ width: 5, height: 5, borderRadius: '50%', background: ct.status === 'running' ? '#4ade80' : '#f87171', flexShrink: 0 }} />
-                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#7A6A50' }}>
+                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#7A6A50' }}>
                       {ct.name}
                     </span>
                   </div>
@@ -399,17 +399,17 @@ function GuaridaCard({ server: ps }: { server: PushServerData }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: online ? '#4ade80' : '#f87171', flexShrink: 0 }} />
-          <span style={{ fontFamily: 'Cinzel, serif', fontSize: 12, color: '#C8A840', letterSpacing: '0.06em' }}>
+          <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-base)', color: '#C8A840', letterSpacing: '0.06em' }}>
             {ps.hostname}
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {p.uptime_seconds !== undefined && online && (
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5A4A30' }}>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#5A4A30' }}>
               ↑ {formatUptime(p.uptime_seconds)}
             </span>
           )}
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: online ? '#5A4A30' : '#f87171' }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: online ? '#5A4A30' : '#f87171' }}>
             {relativeTime(ps.seconds_since_report)}
           </span>
         </div>
@@ -417,7 +417,7 @@ function GuaridaCard({ server: ps }: { server: PushServerData }) {
 
       {/* Offline banner */}
       {!online && (
-        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#f87171' }}>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#f87171' }}>
           Sin conexión — último reporte {relativeTime(ps.seconds_since_report)}
         </div>
       )}
@@ -469,7 +469,7 @@ function GuaridaCard({ server: ps }: { server: PushServerData }) {
             marginTop: 2
           }}
         >
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5A4A30', letterSpacing: '0.08em' }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#5A4A30', letterSpacing: '0.08em' }}>
             GPU — {p.gpu.name}
           </span>
 
@@ -481,10 +481,10 @@ function GuaridaCard({ server: ps }: { server: PushServerData }) {
           />
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5A4A30', letterSpacing: '0.08em' }}>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#5A4A30', letterSpacing: '0.08em' }}>
               TEMP
             </span>
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: dimmed(tempColor(p.gpu.temp_c)) }}>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: dimmed(tempColor(p.gpu.temp_c)) }}>
               {p.gpu.temp_c}°C
             </span>
           </div>
@@ -501,7 +501,7 @@ function GuaridaCard({ server: ps }: { server: PushServerData }) {
       {/* Services */}
       {p.services && Object.keys(p.services).length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5A4A30', letterSpacing: '0.08em' }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#5A4A30', letterSpacing: '0.08em' }}>
             SERVICIOS
           </span>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px', marginTop: 2 }}>
@@ -514,7 +514,7 @@ function GuaridaCard({ server: ps }: { server: PushServerData }) {
                   background: online ? (state === 'active' ? '#4ade80' : '#f87171') : '#3A3028',
                   flexShrink: 0
                 }} />
-                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: online ? '#7A6A50' : '#3A3028' }}>
+                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: online ? '#7A6A50' : '#3A3028' }}>
                   {name}
                 </span>
               </div>

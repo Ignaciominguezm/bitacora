@@ -55,14 +55,14 @@ export function CRMWidget() {
           justifyContent: 'space-between'
         }}
       >
-        <span style={{ fontFamily: 'Cinzel, serif', fontSize: 11, color: '#A09070', letterSpacing: '0.08em' }}>
+        <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-sm)', color: '#A09070', letterSpacing: '0.08em' }}>
           CRM
         </span>
         {pendingCount !== null && pendingCount > 0 && (
           <span
             style={{
               fontFamily: 'JetBrains Mono, monospace',
-              fontSize: 10,
+              fontSize: 'var(--text-xs)',
               color: '#fb923c',
               background: 'rgba(251,146,60,0.12)',
               padding: '1px 6px',
@@ -88,7 +88,7 @@ export function CRMWidget() {
             border: '1px solid rgba(200,168,64,0.2)',
             color: '#E8DCC8',
             fontFamily: 'DM Sans, sans-serif',
-            fontSize: 12,
+            fontSize: 'var(--text-base)',
             outline: 'none'
           }}
           onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(200,168,64,0.5)')}
@@ -99,17 +99,17 @@ export function CRMWidget() {
       {/* Results */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {searching && (
-          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>
+          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
             Buscando...
           </div>
         )}
         {!searching && results.length === 0 && query && (
-          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>
+          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
             Sin resultados
           </div>
         )}
         {!searching && results.length === 0 && !query && pendingCount === 0 && (
-          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>
+          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
             Busca un contacto
           </div>
         )}
@@ -125,11 +125,11 @@ export function CRMWidget() {
             onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(200,168,64,0.05)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
-            <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, color: '#E8DCC8' }}>
+            <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-base)', color: '#E8DCC8' }}>
               {contact.full_name}
             </div>
             {contact.company_name && (
-              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>
                 {contact.company_name}
               </div>
             )}

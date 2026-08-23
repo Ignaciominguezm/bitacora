@@ -54,14 +54,14 @@ export function TasksWidget() {
           justifyContent: 'space-between'
         }}
       >
-        <span style={{ fontFamily: 'Cinzel, serif', fontSize: 11, color: '#A09070', letterSpacing: '0.08em' }}>
+        <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-sm)', color: '#A09070', letterSpacing: '0.08em' }}>
           TAREAS URGENTES
         </span>
         {tasks.length > 0 && (
           <span
             style={{
               fontFamily: 'JetBrains Mono, monospace',
-              fontSize: 10,
+              fontSize: 'var(--text-xs)',
               color: '#C8A840',
               background: 'rgba(200,168,64,0.12)',
               padding: '1px 6px',
@@ -75,11 +75,11 @@ export function TasksWidget() {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
         {loading ? (
-          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>
+          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
             Cargando...
           </div>
         ) : tasks.length === 0 ? (
-          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>
+          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
             Sin tareas urgentes ✓
           </div>
         ) : (
@@ -98,7 +98,7 @@ export function TasksWidget() {
                 <span
                   style={{
                     fontFamily: 'JetBrains Mono, monospace',
-                    fontSize: 9,
+                    fontSize: 'var(--text-2xs)',
                     color: PRIORITY_COLOR[task.priority] || '#5A4A30',
                     background: `${PRIORITY_COLOR[task.priority] || '#5A4A30'}18`,
                     padding: '1px 4px',
@@ -111,7 +111,7 @@ export function TasksWidget() {
                 <span
                   style={{
                     fontFamily: 'DM Sans, sans-serif',
-                    fontSize: 12,
+                    fontSize: 'var(--text-base)',
                     color: '#E8DCC8',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
@@ -124,7 +124,7 @@ export function TasksWidget() {
               </div>
               <div style={{ display: 'flex', gap: 8, paddingLeft: 0 }}>
                 {task.client_name && (
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>
                     {task.client_name}
                   </span>
                 )}
@@ -132,7 +132,7 @@ export function TasksWidget() {
                   <span
                     style={{
                       fontFamily: 'JetBrains Mono, monospace',
-                      fontSize: 10,
+                      fontSize: 'var(--text-xs)',
                       color: isOverdue(task.due_date) ? '#f87171' : '#A09070'
                     }}
                   >
@@ -140,7 +140,7 @@ export function TasksWidget() {
                   </span>
                 )}
                 {task.assigned_to && (
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>
                     → {task.assigned_to}
                   </span>
                 )}

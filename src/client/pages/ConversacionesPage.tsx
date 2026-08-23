@@ -29,7 +29,7 @@ export function ConversacionesPage() {
               borderBottom: `2px solid ${tab === t.id ? t.color : 'transparent'}`,
               color: tab === t.id ? t.color : '#5A4A30',
               fontFamily: 'Cinzel, serif',
-              fontSize: 12,
+              fontSize: 'var(--text-base)',
               letterSpacing: '0.08em',
               cursor: 'pointer',
               transition: 'color 0.15s, border-color 0.15s',

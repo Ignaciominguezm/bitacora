@@ -17,7 +17,7 @@ export default function App() {
   if (auth === 'loading') {
     return (
       <div style={{ background: '#0D0A06', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ color: '#C8A840', fontFamily: 'JetBrains Mono, monospace', fontSize: 14 }}>
+        <span style={{ color: '#C8A840', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-lg)' }}>
           cargando...
         </span>
       </div>

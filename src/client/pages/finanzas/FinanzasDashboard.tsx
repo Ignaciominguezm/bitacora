@@ -32,7 +32,7 @@ export function FinanzasDashboard({
           onClick={() => onNavigate('cuentas')}
           style={{
             fontFamily: 'JetBrains Mono, monospace',
-            fontSize: 12,
+            fontSize: 'var(--text-base)',
             color: '#C8A840',
             background: 'rgba(200,168,64,0.08)',
             border: '1px solid rgba(200,168,64,0.25)',
@@ -47,7 +47,7 @@ export function FinanzasDashboard({
           onClick={() => onNavigate('revision')}
           style={{
             fontFamily: 'JetBrains Mono, monospace',
-            fontSize: 12,
+            fontSize: 'var(--text-base)',
             color: '#C8A840',
             background: 'rgba(200,168,64,0.08)',
             border: '1px solid rgba(200,168,64,0.25)',
@@ -61,15 +61,15 @@ export function FinanzasDashboard({
       </div>
 
       <div>
-        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5A4A30', letterSpacing: '0.12em', marginBottom: 4 }}>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#5A4A30', letterSpacing: '0.12em', marginBottom: 4 }}>
           ÚLTIMO SALDO REGISTRADO POR ÁMBITO
         </div>
-        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30', marginBottom: 12 }}>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30', marginBottom: 12 }}>
           Informativo. Cada ámbito es independiente — nunca se suman entre sí.
         </div>
 
         {loading ? (
-          <div style={{ color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>Cargando...</div>
+          <div style={{ color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)' }}>Cargando...</div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
             {ambitos.map((a) => {
@@ -90,13 +90,13 @@ export function FinanzasDashboard({
                     gap: 6
                   }}
                 >
-                  <span style={{ fontFamily: 'Cinzel, serif', fontSize: 12, color: '#E8DCC8', letterSpacing: '0.06em' }}>
+                  <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-base)', color: '#E8DCC8', letterSpacing: '0.06em' }}>
                     {a.nombre.toUpperCase()}
                   </span>
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 18, color: '#C8A840' }}>
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xl)', color: '#C8A840' }}>
                     {total !== null ? `${formatSaldo(total)} EUR` : 'sin saldos aún'}
                   </span>
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>
                     {propias.length} cuenta{propias.length !== 1 ? 's' : ''} activa{propias.length !== 1 ? 's' : ''}
                   </span>
                 </div>

@@ -28,7 +28,7 @@ export function PlaceholderPage({ title, icon }: Props) {
       >
         {title}
       </h2>
-      <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, margin: 0 }}>
+      <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)', margin: 0 }}>
         — Próximamente —
       </p>
     </div>

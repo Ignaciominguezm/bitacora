@@ -1,6 +1,27 @@
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&family=JetBrains+Mono:wght@300;400;500&display=swap');
 @import "tailwindcss";
 
+:root {
+  /* Escala tipográfica base. Cada valor referencia el fontSize inline que
+     sustituye — no es una multiplicación global, es una tabla de
+     sustitución por sitio, aplicada donde hay texto legible (no en
+     glifos de icono de tamaño fijo, que se dejan en su valor literal). */
+  --text-2xs: 10px;  /* antes 9px */
+  --text-xs: 11px;   /* antes 10px */
+  --text-sm: 12px;   /* antes 11px */
+  --text-base: 13px; /* antes 12px */
+  --text-md: 14px;   /* antes 13px */
+  --text-lg: 15px;   /* antes 14px */
+  --text-2lg: 17px;  /* antes 16px */
+  --text-xl: 19px;   /* antes 18px */
+
+  /* NotificationCenter es position:fixed (top:12,right:16, ~88px de ancho)
+     y se superpone a CUALQUIER contenido de página que llegue hasta el
+     borde derecho en esa franja superior. Cualquier cabecera con
+     contenido interactivo alineado a la derecha debe reservar este hueco. */
+  --notif-gutter: 96px;
+}
+
 @theme {
   --color-bg-primary: #0D0A06;
   --color-bg-secondary: #13100A;

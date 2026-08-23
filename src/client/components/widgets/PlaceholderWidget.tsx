@@ -19,7 +19,7 @@ export function PlaceholderWidget({ label, icon }: Props) {
           borderBottom: '1px solid rgba(200,168,64,0.12)'
         }}
       >
-        <span style={{ fontFamily: 'Cinzel, serif', fontSize: 11, color: '#A09070', letterSpacing: '0.08em' }}>
+        <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-sm)', color: '#A09070', letterSpacing: '0.08em' }}>
           {label.toUpperCase()}
         </span>
       </div>
@@ -35,7 +35,7 @@ export function PlaceholderWidget({ label, icon }: Props) {
         }}
       >
         <span style={{ fontSize: 24 }}>{icon}</span>
-        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, letterSpacing: '0.1em' }}>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', letterSpacing: '0.1em' }}>
           próximamente
         </span>
       </div>

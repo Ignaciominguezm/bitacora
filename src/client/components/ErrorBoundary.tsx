@@ -34,10 +34,10 @@ export class ErrorBoundary extends Component<Props, State> {
             gap: 6
           }}
         >
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>
             {this.props.label ?? 'widget'}
           </span>
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#f87171', textAlign: 'center' }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#f87171', textAlign: 'center' }}>
             {this.state.error.message}
           </span>
           <button
@@ -48,7 +48,7 @@ export class ErrorBoundary extends Component<Props, State> {
               border: '1px solid rgba(200,168,64,0.25)',
               color: '#A09070',
               fontFamily: 'JetBrains Mono, monospace',
-              fontSize: 10,
+              fontSize: 'var(--text-xs)',
               padding: '3px 10px',
               cursor: 'pointer'
             }}

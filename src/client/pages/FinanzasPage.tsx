@@ -27,22 +27,22 @@ export function FinanzasPage() {
     <div style={{ flex: 1, overflowY: 'auto', padding: '24px 32px', background: '#0D0A06', display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ fontFamily: 'Cinzel, serif', fontSize: 18, color: '#C8A840', letterSpacing: '0.1em', margin: 0 }}>
+          <h1 style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-xl)', color: '#C8A840', letterSpacing: '0.1em', margin: 0 }}>
             FINANZAS
           </h1>
-          <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#5A4A30', margin: '4px 0 0' }}>
+          <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#5A4A30', margin: '4px 0 0' }}>
             Cuentas y revisión semanal por ámbito
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: 0 }}>
+        <div style={{ display: 'flex', gap: 0, marginRight: 'var(--notif-gutter)' }}>
           {TABS.map((t, i) => (
             <button
               key={t.id}
               onClick={() => setView(t.id)}
               style={{
                 fontFamily: 'JetBrains Mono, monospace',
-                fontSize: 11,
+                fontSize: 'var(--text-sm)',
                 letterSpacing: '0.06em',
                 padding: '6px 16px',
                 cursor: 'pointer',

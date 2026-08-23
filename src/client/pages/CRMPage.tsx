@@ -15,7 +15,7 @@ export function CRMPage() {
     border: view === v ? '1px solid #C8A840' : '1px solid rgba(200,168,64,0.15)',
     color: view === v ? '#C8A840' : '#5A4A30',
     fontFamily: 'JetBrains Mono, monospace' as const,
-    fontSize: 11,
+    fontSize: 'var(--text-sm)',
     letterSpacing: '0.06em',
     cursor: 'pointer',
     transition: 'all 0.15s'
@@ -25,7 +25,7 @@ export function CRMPage() {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#0D0A06' }}>
       {/* Toggle bar */}
       <div style={{ padding: '10px 20px', borderBottom: '1px solid rgba(200,168,64,0.12)', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-        <span style={{ fontFamily: 'Cinzel, serif', fontSize: 11, color: '#A09070', letterSpacing: '0.08em', marginRight: 4 }}>
+        <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-sm)', color: '#A09070', letterSpacing: '0.08em', marginRight: 4 }}>
           VIRIATECH CRM
         </span>
         <div style={{ display: 'flex', gap: 0 }}>

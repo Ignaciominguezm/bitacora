@@ -104,7 +104,7 @@ const ESTADO_LABEL: Record<Revision['estado'], string> = { borrador: 'Borrador',
 
 const smallBtn: React.CSSProperties = {
   fontFamily: 'JetBrains Mono, monospace',
-  fontSize: 10,
+  fontSize: 'var(--text-xs)',
   color: '#A09070',
   background: 'transparent',
   border: '1px solid rgba(200,168,64,0.2)',
@@ -115,7 +115,7 @@ const smallBtn: React.CSSProperties = {
 
 const inputStyle: React.CSSProperties = {
   fontFamily: 'JetBrains Mono, monospace',
-  fontSize: 12,
+  fontSize: 'var(--text-base)',
   color: '#E8DCC8',
   background: '#0D0A06',
   border: '1px solid rgba(200,168,64,0.2)',
@@ -332,7 +332,7 @@ export function RevisionSemanalView({ ambitos }: { ambitos: Ambito[] }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button onClick={() => setSemana((s) => addDaysStr(s, -7))} style={smallBtn}>← Semana anterior</button>
-          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: '#C8A840', padding: '0 8px' }}>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)', color: '#C8A840', padding: '0 8px' }}>
             {formatDateEs(semana)} — {formatDateEs(addDaysStr(semana, 6))}
           </div>
           <button onClick={() => setSemana((s) => addDaysStr(s, 7))} style={smallBtn}>Semana siguiente →</button>
@@ -353,7 +353,7 @@ export function RevisionSemanalView({ ambitos }: { ambitos: Ambito[] }) {
                 alignItems: 'center',
                 gap: 8,
                 fontFamily: 'Cinzel, serif',
-                fontSize: 12,
+                fontSize: 'var(--text-base)',
                 letterSpacing: '0.06em',
                 color: active ? '#E8DCC8' : '#5A4A30',
                 background: active ? hexToRgba(a.color, 0.32) : 'transparent',
@@ -370,7 +370,7 @@ export function RevisionSemanalView({ ambitos }: { ambitos: Ambito[] }) {
       </div>
 
       {loadingRevision ? (
-        <div style={{ color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>Cargando...</div>
+        <div style={{ color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)' }}>Cargando...</div>
       ) : selectedAmbito && ambitoInfo ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <SaldosBlock
@@ -420,7 +420,7 @@ export function RevisionSemanalView({ ambitos }: { ambitos: Ambito[] }) {
           />
         </div>
       ) : (
-        <div style={{ color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>
+        <div style={{ color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)' }}>
           Elige un ámbito para trabajar en él.
         </div>
       )}
@@ -452,7 +452,7 @@ function SaldosBlock({
   return (
     <Section title="SALDOS DE LA SEMANA" color={ambito.color}>
       {cuentas.length === 0 && (
-        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#5A4A30', padding: '8px 4px' }}>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#5A4A30', padding: '8px 4px' }}>
           Este ámbito no tiene cuentas activas todavía.
         </div>
       )}
@@ -465,17 +465,17 @@ function SaldosBlock({
             style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '8px 12px', border: '1px solid rgba(200,168,64,0.08)' }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-              <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, color: '#E8DCC8', minWidth: 140 }}>{cta.nombre}</span>
+              <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-md)', color: '#E8DCC8', minWidth: 140 }}>{cta.nombre}</span>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>
+                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>
                   Semana anterior:{' '}
                   <span style={{ color: '#7A6A50' }}>
                     {cmp?.saldo_anterior !== null && cmp?.saldo_anterior !== undefined ? `${formatSaldo(cmp.saldo_anterior)} ${cta.moneda}` : '—'}
                   </span>
                 </div>
                 {cmp && cmp.delta !== null && (
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: deltaColor(cmp.delta) }}>
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: deltaColor(cmp.delta) }}>
                     {deltaLabel(cmp.delta)}
                   </span>
                 )}
@@ -495,7 +495,7 @@ function SaldosBlock({
               </div>
             </div>
             {error && (
-              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#f87171', alignSelf: 'flex-end' }}>
+              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#f87171', alignSelf: 'flex-end' }}>
                 {error}
               </span>
             )}
@@ -588,22 +588,22 @@ function PrevisionesBlock({
         body: 'Dinero que esperas que entre o salga, pero que todavía NO ha pasado por el banco.\n- Cobros previstos: lo que esperas recibir (cobro del autónomo, factura de un cliente, ingreso de una formación).\n- Pagos previstos: lo que sabes que pagarás (cuota de autónomo, gestoría, hosting, hipoteca, proveedor).\nLa clave: aún no ha entrado ni salido, pero quieres verlo venir.'
       }}
     >
-      {loading && <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#5A4A30' }}>Cargando...</div>}
+      {loading && <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#5A4A30' }}>Cargando...</div>}
       {!loading && previsiones.length === 0 && !adding && (
-        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#5A4A30', padding: '8px 4px' }}>Sin previsiones vigentes.</div>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#5A4A30', padding: '8px 4px' }}>Sin previsiones vigentes.</div>
       )}
       {previsiones.map((p) => (
         <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', border: '1px solid rgba(200,168,64,0.08)', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: p.tipo === 'ingreso' ? '#4ade80' : '#f87171', border: `1px solid ${p.tipo === 'ingreso' ? 'rgba(74,222,128,0.3)' : 'rgba(248,113,113,0.3)'}`, padding: '2px 6px' }}>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: p.tipo === 'ingreso' ? '#4ade80' : '#f87171', border: `1px solid ${p.tipo === 'ingreso' ? 'rgba(74,222,128,0.3)' : 'rgba(248,113,113,0.3)'}`, padding: '2px 6px' }}>
               {p.tipo === 'ingreso' ? 'INGRESO' : 'GASTO'}
             </span>
-            <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, color: '#E8DCC8' }}>{p.concepto}</span>
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>{formatDateEs(p.fecha_estimada)}</span>
-            {p.cuenta_nombre && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>· {p.cuenta_nombre}</span>}
+            <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-md)', color: '#E8DCC8' }}>{p.concepto}</span>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>{formatDateEs(p.fecha_estimada)}</span>
+            {p.cuenta_nombre && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>· {p.cuenta_nombre}</span>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: '#E8DCC8' }}>{formatSaldo(p.importe)} {p.moneda}</span>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)', color: '#E8DCC8' }}>{formatSaldo(p.importe)} {p.moneda}</span>
             <button onClick={() => setEstado(p.id, 'realizado')} style={{ ...smallBtn, color: '#4ade80' }}>Realizado</button>
             <button onClick={() => setEstado(p.id, 'cancelado')} style={{ ...smallBtn, color: '#f87171' }}>Cancelar</button>
           </div>
@@ -626,7 +626,7 @@ function PrevisionesBlock({
           <button onClick={submit} disabled={saving} style={{ ...smallBtn, color: '#C8A840', borderColor: 'rgba(200,168,64,0.35)' }}>
             {saving ? '...' : 'Añadir'}
           </button>
-          {error && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#f87171', alignSelf: 'center' }}>{error}</span>}
+          {error && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#f87171', alignSelf: 'center' }}>{error}</span>}
         </div>
       )}
     </Section>
@@ -706,18 +706,18 @@ function ReservasBlock({
         body: 'Dinero que YA tienes en una cuenta, pero que está apartado para algo y no consideras libre.\nEjemplos: 600€ para impuestos, 300€ para devolver a alguien, 1.000€ de colchón, dinero apartado para una factura concreta.\nLa clave: el dinero ya existe, pero está comprometido. (Distinto de una previsión: la previsión es dinero que esperas; la reserva es dinero que ya tienes pero no puedes gastar alegremente.)'
       }}
     >
-      {loading && <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#5A4A30' }}>Cargando...</div>}
+      {loading && <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#5A4A30' }}>Cargando...</div>}
       {!loading && reservas.length === 0 && !adding && (
-        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#5A4A30', padding: '8px 4px' }}>Sin reservas activas.</div>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#5A4A30', padding: '8px 4px' }}>Sin reservas activas.</div>
       )}
       {reservas.map((r) => (
         <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', border: '1px solid rgba(200,168,64,0.08)', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, color: '#E8DCC8' }}>{r.concepto}</span>
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>· {r.cuenta_nombre}</span>
+            <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-md)', color: '#E8DCC8' }}>{r.concepto}</span>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>· {r.cuenta_nombre}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: '#E8DCC8' }}>{formatSaldo(r.importe)} {r.moneda}</span>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)', color: '#E8DCC8' }}>{formatSaldo(r.importe)} {r.moneda}</span>
             <button onClick={() => setEstado(r.id, 'liberada')} style={smallBtn}>Liberar</button>
             <button onClick={() => setEstado(r.id, 'usada')} style={smallBtn}>Usar</button>
             <button onClick={() => setEstado(r.id, 'cancelada')} style={{ ...smallBtn, color: '#f87171' }}>Cancelar</button>
@@ -736,7 +736,7 @@ function ReservasBlock({
           <button onClick={submit} disabled={saving} style={{ ...smallBtn, color: '#C8A840', borderColor: 'rgba(200,168,64,0.35)' }}>
             {saving ? '...' : 'Añadir'}
           </button>
-          {error && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#f87171', alignSelf: 'center' }}>{error}</span>}
+          {error && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#f87171', alignSelf: 'center' }}>{error}</span>}
         </div>
       )}
     </Section>
@@ -821,21 +821,21 @@ function DeudasBlock({
         body: 'Obligaciones o derechos de cobro que quieres controlar como deuda viva.\n- Me deben: alguien te debe dinero (una factura ya vencida).\n- Debo: tú debes saldar algo (a una persona, a un proveedor).\nLa clave: la deuda tiene peso de obligación/seguimiento. Una previsión es algo esperado; una deuda es algo que ya consideras pendiente de saldar.\nEjemplo: "me pagará la factura el día 5" es previsión; "me debe una factura ya vencida" es deuda.'
       }}
     >
-      {loading && <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#5A4A30' }}>Cargando...</div>}
+      {loading && <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#5A4A30' }}>Cargando...</div>}
       {!loading && deudas.length === 0 && !adding && (
-        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#5A4A30', padding: '8px 4px' }}>Sin deudas pendientes.</div>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#5A4A30', padding: '8px 4px' }}>Sin deudas pendientes.</div>
       )}
       {deudas.map((d) => (
         <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', border: '1px solid rgba(200,168,64,0.08)', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: d.direccion === 'debo' ? '#f87171' : '#4ade80', border: `1px solid ${d.direccion === 'debo' ? 'rgba(248,113,113,0.3)' : 'rgba(74,222,128,0.3)'}`, padding: '2px 6px' }}>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: d.direccion === 'debo' ? '#f87171' : '#4ade80', border: `1px solid ${d.direccion === 'debo' ? 'rgba(248,113,113,0.3)' : 'rgba(74,222,128,0.3)'}`, padding: '2px 6px' }}>
               {d.direccion === 'debo' ? 'DEBO' : 'ME DEBEN'}
             </span>
-            <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, color: '#E8DCC8' }}>{d.contraparte}</span>
-            {d.fecha_vencimiento && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>vence {formatDateEs(d.fecha_vencimiento)}</span>}
+            <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-md)', color: '#E8DCC8' }}>{d.contraparte}</span>
+            {d.fecha_vencimiento && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>vence {formatDateEs(d.fecha_vencimiento)}</span>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: '#E8DCC8' }}>{formatSaldo(d.importe)} {d.moneda}</span>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)', color: '#E8DCC8' }}>{formatSaldo(d.importe)} {d.moneda}</span>
             <button onClick={() => setEstado(d.id, d.direccion === 'debo' ? 'pagada' : 'cobrada')} style={{ ...smallBtn, color: '#4ade80' }}>
               {d.direccion === 'debo' ? 'Marcar pagada' : 'Marcar cobrada'}
             </button>
@@ -856,7 +856,7 @@ function DeudasBlock({
           <button onClick={submit} disabled={saving} style={{ ...smallBtn, color: '#C8A840', borderColor: 'rgba(200,168,64,0.35)' }}>
             {saving ? '...' : 'Añadir'}
           </button>
-          {error && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#f87171', alignSelf: 'center' }}>{error}</span>}
+          {error && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#f87171', alignSelf: 'center' }}>{error}</span>}
         </div>
       )}
     </Section>
@@ -895,8 +895,8 @@ function NotasEstadoBlock({
           rows={3}
           style={{ ...inputStyle, width: '100%', resize: 'vertical', fontFamily: 'JetBrains Mono, monospace' }}
         />
-        {savingNotas && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>Guardando notas...</span>}
-        {notasError && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#f87171' }}>{notasError}</span>}
+        {savingNotas && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>Guardando notas...</span>}
+        {notasError && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#f87171' }}>{notasError}</span>}
 
         <div style={{ display: 'flex', gap: 0, marginTop: 4 }}>
           {ESTADOS_REVISION.map((e, i) => (
@@ -905,7 +905,7 @@ function NotasEstadoBlock({
               onClick={() => onChangeEstado(e)}
               style={{
                 fontFamily: 'JetBrains Mono, monospace',
-                fontSize: 11,
+                fontSize: 'var(--text-sm)',
                 padding: '6px 16px',
                 cursor: 'pointer',
                 color: estado === e ? '#C8A840' : '#5A4A30',
@@ -919,7 +919,7 @@ function NotasEstadoBlock({
             </button>
           ))}
         </div>
-        {estadoError && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#f87171' }}>{estadoError}</span>}
+        {estadoError && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#f87171' }}>{estadoError}</span>}
       </div>
     </Section>
   )
@@ -930,25 +930,25 @@ function ResumenComparacion({ compareData }: { compareData: CompareResponse | nu
 
   return (
     <section>
-      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5A4A30', letterSpacing: '0.12em', marginBottom: 4 }}>
+      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#5A4A30', letterSpacing: '0.12em', marginBottom: 4 }}>
         RESUMEN — INFORMATIVO
       </div>
-      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30', marginBottom: 12 }}>
+      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30', marginBottom: 12 }}>
         Cada ámbito es independiente. Estos totales NUNCA se suman entre sí.
         {compareData.sin_comparacion_previa && ' Sin comparación previa disponible para la semana anterior.'}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
         {compareData.ambitos.map((a) => (
           <div key={a.id} style={{ background: '#13100A', border: `1px solid ${hexToRgba(a.color, 0.2)}`, borderLeft: `3px solid ${a.color}`, padding: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontFamily: 'Cinzel, serif', fontSize: 11, color: '#E8DCC8', letterSpacing: '0.06em' }}>{a.nombre.toUpperCase()}</span>
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 16, color: '#C8A840' }}>
+            <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-sm)', color: '#E8DCC8', letterSpacing: '0.06em' }}>{a.nombre.toUpperCase()}</span>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2lg)', color: '#C8A840' }}>
               {a.total_actual !== null ? formatSaldo(a.total_actual) : '—'}
             </span>
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>
               Semana anterior: {a.total_anterior !== null ? formatSaldo(a.total_anterior) : '—'}
             </span>
             {a.delta_total !== null && (
-              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: deltaColor(a.delta_total) }}>
+              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: deltaColor(a.delta_total) }}>
                 {deltaLabel(a.delta_total)}
               </span>
             )}
@@ -986,7 +986,7 @@ function InfoButton({ title, body }: { title: string; body: string }) {
           background: open ? 'rgba(200,168,64,0.32)' : 'transparent',
           color: open ? '#C8A840' : '#7A6A50',
           fontFamily: 'JetBrains Mono, monospace',
-          fontSize: 9,
+          fontSize: 'var(--text-2xs)',
           lineHeight: '13px',
           cursor: 'pointer',
           padding: 0,
@@ -1019,18 +1019,18 @@ function InfoButton({ title, body }: { title: string; body: string }) {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-            <span style={{ fontFamily: 'Cinzel, serif', fontSize: 12, color: '#C8A840', letterSpacing: '0.04em' }}>
+            <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-base)', color: '#C8A840', letterSpacing: '0.04em' }}>
               {title}
             </span>
             <button
               onClick={() => setOpen(false)}
               aria-label="Cerrar"
-              style={{ background: 'transparent', border: 'none', color: '#5A4A30', cursor: 'pointer', fontSize: 13, padding: 0, lineHeight: 1, flexShrink: 0 }}
+              style={{ background: 'transparent', border: 'none', color: '#5A4A30', cursor: 'pointer', fontSize: 'var(--text-md)', padding: 0, lineHeight: 1, flexShrink: 0 }}
             >
               ✕
             </button>
           </div>
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#A09070', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#A09070', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
             {body}
           </span>
         </div>
@@ -1056,7 +1056,7 @@ function Section({
     <section style={{ background: '#13100A', border: `1px solid ${hexToRgba(color, 0.2)}` }}>
       <div style={{ padding: '8px 12px', borderBottom: `1px solid ${hexToRgba(color, 0.1)}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5A4A30', letterSpacing: '0.12em' }}>{title}</span>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#5A4A30', letterSpacing: '0.12em' }}>{title}</span>
           {info && <InfoButton title={info.title} body={info.body} />}
         </div>
         {onAdd && (

@@ -41,21 +41,21 @@ export function WhatsAppWidget() {
           justifyContent: 'space-between'
         }}
       >
-        <span style={{ fontFamily: 'Cinzel, serif', fontSize: 11, color: '#A09070', letterSpacing: '0.08em' }}>
+        <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-sm)', color: '#A09070', letterSpacing: '0.08em' }}>
           WHATSAPP — UnrIA
         </span>
-        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>
           {convs.length} recientes
         </span>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
         {loading ? (
-          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>
+          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
             Cargando conversaciones...
           </div>
         ) : convs.length === 0 ? (
-          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>
+          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
             Sin conversaciones recientes
           </div>
         ) : (
@@ -75,13 +75,13 @@ export function WhatsAppWidget() {
               onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, color: '#E8DCC8', fontWeight: 500 }}>
+                <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-base)', color: '#E8DCC8', fontWeight: 500 }}>
                   {displayName(conv)}
                 </span>
                 <span
                   style={{
                     fontFamily: 'JetBrains Mono, monospace',
-                    fontSize: 9,
+                    fontSize: 'var(--text-2xs)',
                     color: conv.last_type === 'ai' ? '#C8A840' : '#5A4A30',
                     letterSpacing: '0.06em'
                   }}
@@ -89,7 +89,7 @@ export function WhatsAppWidget() {
                   {conv.last_type === 'ai' ? 'UnrIA' : 'user'}
                 </span>
               </div>
-              <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 11, color: '#A09070' }}>
+              <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-sm)', color: '#A09070' }}>
                 {truncate(conv.last_message)}
               </span>
             </div>

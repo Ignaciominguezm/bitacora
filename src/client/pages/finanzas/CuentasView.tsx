@@ -130,7 +130,7 @@ export function CuentasView({ ambitos }: { ambitos: Ambito[] }) {
           onClick={() => openCreate()}
           style={{
             fontFamily: 'JetBrains Mono, monospace',
-            fontSize: 11,
+            fontSize: 'var(--text-sm)',
             color: '#C8A840',
             background: 'rgba(200,168,64,0.08)',
             border: '1px solid rgba(200,168,64,0.25)',
@@ -144,7 +144,7 @@ export function CuentasView({ ambitos }: { ambitos: Ambito[] }) {
       </div>
 
       {loading ? (
-        <div style={{ color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>
+        <div style={{ color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)' }}>
           Cargando...
         </div>
       ) : (
@@ -212,10 +212,10 @@ function AmbitoBlock({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: ambito.color, flexShrink: 0 }} />
-          <span style={{ fontFamily: 'Cinzel, serif', fontSize: 13, color: '#E8DCC8', letterSpacing: '0.06em' }}>
+          <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-md)', color: '#E8DCC8', letterSpacing: '0.06em' }}>
             {ambito.nombre.toUpperCase()}
           </span>
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>
             {activas.length} cuenta{activas.length !== 1 ? 's' : ''}
           </span>
         </div>
@@ -223,7 +223,7 @@ function AmbitoBlock({
           onClick={onNew}
           style={{
             fontFamily: 'JetBrains Mono, monospace',
-            fontSize: 10,
+            fontSize: 'var(--text-xs)',
             color: '#A09070',
             background: 'transparent',
             border: `1px solid ${hexToRgba(ambito.color, 0.25)}`,
@@ -238,7 +238,7 @@ function AmbitoBlock({
 
       <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
         {cuentas.length === 0 && (
-          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#5A4A30', padding: '8px 4px' }}>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#5A4A30', padding: '8px 4px' }}>
             Sin cuentas todavía.
           </div>
         )}
@@ -249,7 +249,7 @@ function AmbitoBlock({
 
         {inactivas.length > 0 && (
           <>
-            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5A4A30', letterSpacing: '0.1em', marginTop: 8, marginBottom: 2 }}>
+            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#5A4A30', letterSpacing: '0.1em', marginTop: 8, marginBottom: 2 }}>
               INACTIVAS
             </div>
             {inactivas.map((cuenta) => (
@@ -285,13 +285,13 @@ function CuentaRow({
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-        <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, color: '#E8DCC8', whiteSpace: 'nowrap' }}>
+        <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-md)', color: '#E8DCC8', whiteSpace: 'nowrap' }}>
           {cuenta.nombre}
         </span>
         <span
           style={{
             fontFamily: 'JetBrains Mono, monospace',
-            fontSize: 9,
+            fontSize: 'var(--text-2xs)',
             color: '#C8A840',
             background: 'rgba(200,168,64,0.1)',
             border: '1px solid rgba(200,168,64,0.2)',
@@ -303,19 +303,19 @@ function CuentaRow({
           {TIPO_LABEL[cuenta.tipo]}
         </span>
         {cuenta.entidad && (
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#5A4A30' }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#5A4A30' }}>
             {cuenta.entidad}
           </span>
         )}
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
-        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: cuenta.saldo_actual === null ? '#5A4A30' : '#E8DCC8' }}>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)', color: cuenta.saldo_actual === null ? '#5A4A30' : '#E8DCC8' }}>
           {cuenta.saldo_actual === null ? 'sin saldos aún' : `${formatSaldo(cuenta.saldo_actual)} ${cuenta.moneda}`}
         </span>
         <button
           onClick={() => onEdit(cuenta)}
-          style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#A09070', background: 'transparent', border: 'none', cursor: 'pointer', padding: 2 }}
+          style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#A09070', background: 'transparent', border: 'none', cursor: 'pointer', padding: 2 }}
         >
           Editar
         </button>
@@ -323,7 +323,7 @@ function CuentaRow({
           onClick={() => onToggleActiva(cuenta)}
           style={{
             fontFamily: 'JetBrains Mono, monospace',
-            fontSize: 10,
+            fontSize: 'var(--text-xs)',
             color: cuenta.activa ? '#f87171' : '#4ade80',
             background: 'transparent',
             border: 'none',
@@ -357,7 +357,7 @@ function CuentaForm({
 }) {
   const inputStyle: React.CSSProperties = {
     fontFamily: 'JetBrains Mono, monospace',
-    fontSize: 12,
+    fontSize: 'var(--text-base)',
     color: '#E8DCC8',
     background: '#0D0A06',
     border: '1px solid rgba(200,168,64,0.2)',
@@ -367,7 +367,7 @@ function CuentaForm({
   }
   const labelStyle: React.CSSProperties = {
     fontFamily: 'JetBrains Mono, monospace',
-    fontSize: 9,
+    fontSize: 'var(--text-2xs)',
     color: '#5A4A30',
     letterSpacing: '0.1em',
     marginBottom: 4,
@@ -400,7 +400,7 @@ function CuentaForm({
           gap: 14
         }}
       >
-        <span style={{ fontFamily: 'Cinzel, serif', fontSize: 14, color: '#C8A840', letterSpacing: '0.08em' }}>
+        <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-lg)', color: '#C8A840', letterSpacing: '0.08em' }}>
           {form.mode === 'create' ? 'NUEVA CUENTA' : 'EDITAR CUENTA'}
         </span>
 
@@ -465,7 +465,7 @@ function CuentaForm({
         </div>
 
         {error && (
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#f87171' }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#f87171' }}>
             {error}
           </span>
         )}
@@ -473,7 +473,7 @@ function CuentaForm({
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
           <button
             onClick={onCancel}
-            style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#5A4A30', background: 'transparent', border: '1px solid rgba(200,168,64,0.15)', padding: '7px 16px', cursor: 'pointer' }}
+            style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#5A4A30', background: 'transparent', border: '1px solid rgba(200,168,64,0.15)', padding: '7px 16px', cursor: 'pointer' }}
           >
             Cancelar
           </button>
@@ -482,7 +482,7 @@ function CuentaForm({
             disabled={saving}
             style={{
               fontFamily: 'JetBrains Mono, monospace',
-              fontSize: 11,
+              fontSize: 'var(--text-sm)',
               color: '#C8A840',
               background: 'rgba(200,168,64,0.1)',
               border: '1px solid rgba(200,168,64,0.35)',

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { AgentContext, AgentGateway, AgentSessionRef } from './types.js'
-import { AMBITO_LABEL, MODO_LABEL } from './labels.js'
+import { buildPrompt } from './prompt.js'
 
 const OPENCLAW_BIN = process.env.OPENCLAW_BIN || 'openclaw'
 const OPENCLAW_AGENT_ID = process.env.OPENCLAW_AGENT_ID || 'main'
@@ -20,18 +20,6 @@ interface OpenClawPayload {
 interface OpenClawResult {
   payloads?: OpenClawPayload[]
   finalAssistantVisibleText?: string
-}
-
-function buildPrompt(message: string, context: AgentContext, session: AgentSessionRef): string {
-  return [
-    'Estás respondiendo dentro de Cabina Unria, la interfaz de trabajo de ' +
-      'Bitácora — no es Telegram ni WhatsApp. Responde en consecuencia.',
-    `Ámbito: ${AMBITO_LABEL[context.ambito]}`,
-    `Modo: ${MODO_LABEL[context.modo]}`,
-    `Conversación: "${session.title}" (sesión ${session.sessionId})`,
-    '',
-    message
-  ].join('\n')
 }
 
 function extractText(result: OpenClawResult): string {

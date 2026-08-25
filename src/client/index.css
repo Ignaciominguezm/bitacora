@@ -6,14 +6,14 @@
      sustituye — no es una multiplicación global, es una tabla de
      sustitución por sitio, aplicada donde hay texto legible (no en
      glifos de icono de tamaño fijo, que se dejan en su valor literal). */
-  --text-2xs: 10px;  /* antes 9px */
-  --text-xs: 11px;   /* antes 10px */
-  --text-sm: 12px;   /* antes 11px */
-  --text-base: 13px; /* antes 12px */
-  --text-md: 14px;   /* antes 13px */
-  --text-lg: 15px;   /* antes 14px */
-  --text-2lg: 17px;  /* antes 16px */
-  --text-xl: 19px;   /* antes 18px */
+  --text-2xs: 12px;  /* antes 10px */
+  --text-xs: 13px;   /* antes 11px */
+  --text-sm: 14px;   /* antes 12px */
+  --text-base: 15px; /* antes 13px */
+  --text-md: 16px;   /* antes 14px */
+  --text-lg: 17px;   /* antes 15px */
+  --text-2lg: 19px;  /* antes 17px */
+  --text-xl: 21px;   /* antes 19px */
 
   /* NotificationCenter es position:fixed (top:12,right:16, ~88px de ancho)
      y se superpone a CUALQUIER contenido de página que llegue hasta el

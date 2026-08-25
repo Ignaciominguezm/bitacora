@@ -18,10 +18,14 @@ export interface CabinaSessionSummary {
   ambito: Ambito
   modo: Modo
   title: string
+  archived_at: string | null
   created_at: string
   updated_at: string
 }
 
 export interface CabinaSessionDetail extends CabinaSessionSummary {
   messages: CabinaMessage[]
+  // true si el servidor sigue generando un turno para esta sesión (p. ej.
+  // se envió un mensaje y se cambió de pestaña antes de que respondiera).
+  processing: boolean
 }

@@ -4,6 +4,12 @@ import type { Ambito, CabinaMessage, CabinaSessionDetail, CabinaSessionSummary, 
 const DEFAULT_AMBITO: Ambito = 'proyectos_personales'
 const DEFAULT_MODO: Modo = 'diseno'
 const DEFAULT_TITLE = 'Nueva conversación'
+// El servidor ya persiste la respuesta aunque el cliente se desconecte a
+// media respuesta (ver cabina.ts) — lo que falta al volver es saber que
+// sigue en curso y refrescar cuando termine. Tope explícito para no dejar
+// un polling latiendo para siempre si el servidor nunca marca el fin.
+const POLL_INTERVAL_MS = 4000
+const POLL_MAX_ATTEMPTS = 60 // ~4 min a 4s por intento
 
 function emptyMessage(role: CabinaMessage['role'], ambito: Ambito, modo: Modo): CabinaMessage {
   return { role, content: '', ambito, modo }
@@ -13,6 +19,8 @@ function emptyMessage(role: CabinaMessage['role'], ambito: Ambito, modo: Modo): 
 // /api/cabina/* — no conoce el gateway ni cómo se genera la respuesta.
 export function useAgentSession() {
   const [sessions, setSessions] = useState<CabinaSessionSummary[]>([])
+  const [archivedSessions, setArchivedSessions] = useState<CabinaSessionSummary[]>([])
+  const [viewArchived, setViewArchived] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [ambito, setAmbito] = useState<Ambito>(DEFAULT_AMBITO)
@@ -20,9 +28,50 @@ export function useAgentSession() {
   const [title, setTitle] = useState(DEFAULT_TITLE)
   const [messages, setMessages] = useState<CabinaMessage[]>([])
   const [streaming, setStreaming] = useState(false)
+  const [sessionProcessing, setSessionProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
+  const pollRef = useRef<{ timer: ReturnType<typeof setInterval> | null; attempts: number }>({ timer: null, attempts: 0 })
+
+  function stopPolling() {
+    if (pollRef.current.timer) {
+      clearInterval(pollRef.current.timer)
+      pollRef.current.timer = null
+    }
+    pollRef.current.attempts = 0
+  }
+
+  // Solo se llama cuando GET /session/:id ya dijo processing:true — pregunta
+  // otra vez cada POLL_INTERVAL_MS hasta que deje de estarlo, con tope.
+  function startPolling(id: string) {
+    stopPolling()
+    pollRef.current.timer = setInterval(async () => {
+      pollRef.current.attempts += 1
+      if (pollRef.current.attempts > POLL_MAX_ATTEMPTS) {
+        stopPolling()
+        if (activeIdRef.current === id) {
+          setSessionProcessing(false)
+          setError('Unria está tardando más de lo esperado. Recarga la conversación para comprobar si respondió.')
+        }
+        return
+      }
+      try {
+        const res = await fetch(`/api/cabina/session/${id}`, { credentials: 'include' })
+        if (!res.ok) return
+        const data: CabinaSessionDetail = await res.json()
+        if (activeIdRef.current !== id) { stopPolling(); return }
+        if (!data.processing) {
+          stopPolling()
+          setSessionProcessing(false)
+          setMessages(Array.isArray(data.messages) ? data.messages : [])
+          setTitle(data.title)
+        }
+      } catch { /* red intermitente — se reintenta en el próximo tick */ }
+    }, POLL_INTERVAL_MS)
+  }
+
+  useEffect(() => () => stopPolling(), [])
   // Permite a sendMessage comprobar, tras un await, si el usuario sigue en
   // la misma sesión antes de tocar `messages` — evita que una respuesta (o
   // un marcado de error) de una sesión abandonada corrompa la que se ve
@@ -48,6 +97,7 @@ export function useAgentSession() {
   async function selectSession(id: string) {
     abortRef.current?.abort()
     setStreaming(false)
+    stopPolling()
     setActiveId(id)
     setError(null)
     try {
@@ -58,6 +108,8 @@ export function useAgentSession() {
       setModo(data.modo)
       setTitle(data.title)
       setMessages(Array.isArray(data.messages) ? data.messages : [])
+      setSessionProcessing(data.processing)
+      if (data.processing) startPolling(id)
     } catch {
       setMessages([])
       setError('No se pudo cargar la conversación')
@@ -100,7 +152,7 @@ export function useAgentSession() {
       const data: CabinaSessionDetail = await res.json()
       const summary: CabinaSessionSummary = {
         id: data.id, ambito: data.ambito, modo: data.modo, title: data.title,
-        created_at: data.created_at, updated_at: data.updated_at
+        archived_at: data.archived_at, created_at: data.created_at, updated_at: data.updated_at
       }
       setSessions((prev) => [summary, ...prev.filter((s) => s.id !== id)])
       // activeIdRef, no el `activeId` de estado: este closure puede venir de
@@ -126,6 +178,71 @@ export function useAgentSession() {
       setSessions((prev) => prev.map((s) => (s.id === data.id ? data : s)))
     } catch {
       setError('No se pudo renombrar la conversación')
+    }
+  }
+
+  // Cambia entre la lista activa y la archivada, recargando desde el
+  // servidor (cubre también el caso de volver a "Activas" tras desarchivar
+  // algo, sin tener que sincronizar los dos arrays a mano).
+  async function setArchivedView(archived: boolean) {
+    setViewArchived(archived)
+    try {
+      const res = await fetch(`/api/cabina/history?archived=${archived}`, { credentials: 'include' })
+      const data: CabinaSessionSummary[] = await res.json()
+      if (archived) setArchivedSessions(data)
+      else setSessions(data)
+    } catch {
+      setError('No se pudo cargar el historial')
+    }
+  }
+
+  // Archivar es reversible — solo oculta de la lista activa. Si era la
+  // sesión abierta, la deseleccionamos (ya no tiene sentido seguir
+  // "sobre" una conversación que acaba de desaparecer de la lista).
+  async function archiveSession(id: string) {
+    try {
+      const res = await fetch(`/api/cabina/session/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ archived: true })
+      })
+      if (!res.ok) throw new Error('archive failed')
+      setSessions((prev) => prev.filter((s) => s.id !== id))
+      if (activeId === id) {
+        setActiveId(null)
+        setMessages([])
+        setTitle(DEFAULT_TITLE)
+      }
+    } catch {
+      setError('No se pudo archivar la conversación')
+    }
+  }
+
+  async function unarchiveSession(id: string) {
+    try {
+      const res = await fetch(`/api/cabina/session/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ archived: false })
+      })
+      if (!res.ok) throw new Error('unarchive failed')
+      setArchivedSessions((prev) => prev.filter((s) => s.id !== id))
+    } catch {
+      setError('No se pudo desarchivar la conversación')
+    }
+  }
+
+  // Irreversible — el servidor ya exige que esté archivada antes de
+  // borrarla (mismo "dos pasos" reforzado del lado del backend).
+  async function deleteSession(id: string) {
+    try {
+      const res = await fetch(`/api/cabina/session/${id}`, { method: 'DELETE', credentials: 'include' })
+      if (!res.ok) throw new Error('delete failed')
+      setArchivedSessions((prev) => prev.filter((s) => s.id !== id))
+    } catch {
+      setError('No se pudo borrar la conversación')
     }
   }
 
@@ -208,6 +325,8 @@ export function useAgentSession() {
 
   return {
     sessions,
+    archivedSessions,
+    viewArchived,
     loadingHistory,
     activeId,
     ambito,
@@ -215,12 +334,17 @@ export function useAgentSession() {
     title,
     messages,
     streaming,
+    sessionProcessing,
     error,
     setAmbito,
     setModo,
     selectSession,
     newSession,
     renameSession,
-    sendMessage
+    sendMessage,
+    setArchivedView,
+    archiveSession,
+    unarchiveSession,
+    deleteSession
   }
 }

@@ -2,15 +2,24 @@
 @import "tailwindcss";
 
 :root {
-  /* Escala tipográfica — mismos tokens que main (ff0fc5f), solo el bloque
-     de tamaños; sin --notif-gutter (no aplica a Cabina). Cada valor +1px
-     sobre el fontSize inline que sustituye. */
-  --text-2xs: 10px;  /* antes 9px */
-  --text-xs: 11px;   /* antes 10px */
-  --text-sm: 12px;   /* antes 11px */
-  --text-base: 13px; /* antes 12px */
-  --text-md: 14px;   /* antes 13px */
-  --text-lg: 15px;   /* antes 14px */
+  /* Escala tipográfica base. Cada valor referencia el fontSize inline que
+     sustituye — no es una multiplicación global, es una tabla de
+     sustitución por sitio, aplicada donde hay texto legible (no en
+     glifos de icono de tamaño fijo, que se dejan en su valor literal). */
+  --text-2xs: 12px;  /* antes 10px */
+  --text-xs: 13px;   /* antes 11px */
+  --text-sm: 14px;   /* antes 12px */
+  --text-base: 15px; /* antes 13px */
+  --text-md: 16px;   /* antes 14px */
+  --text-lg: 17px;   /* antes 15px */
+  --text-2lg: 19px;  /* antes 17px */
+  --text-xl: 21px;   /* antes 19px */
+
+  /* NotificationCenter es position:fixed (top:12,right:16, ~88px de ancho)
+     y se superpone a CUALQUIER contenido de página que llegue hasta el
+     borde derecho en esa franja superior. Cualquier cabecera con
+     contenido interactivo alineado a la derecha debe reservar este hueco. */
+  --notif-gutter: 96px;
 }
 
 @theme {
@@ -18,7 +27,7 @@
   --color-bg-secondary: #13100A;
   --color-bg-card: #1A1510;
   --color-accent: #C8A840;
-  --color-accent-dark: #8B6914;
+  --color-accent-dark: #9C7C34; /* antes #8B6914 — 3.7-3.9:1 sobre fondo real, bajo AA (4.5:1) */
   --color-text-primary: #E8DCC8;
   --color-text-secondary: #A09070;
   --color-text-muted: #5A4A30;

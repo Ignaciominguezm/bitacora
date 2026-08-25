@@ -224,7 +224,7 @@ export function KinnarethChat() {
         <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(139,157,200,0.1)', flexShrink: 0 }}>
           <button
             onClick={newConversation}
-            style={{ width: '100%', padding: '7px 12px', background: `${ACCENT}12`, border: `1px solid ${ACCENT}40`, color: ACCENT, fontFamily: 'JetBrains Mono, monospace', fontSize: 11, cursor: 'pointer', letterSpacing: '0.06em', transition: 'background 0.15s' }}
+            style={{ width: '100%', padding: '7px 12px', background: `${ACCENT}12`, border: `1px solid ${ACCENT}40`, color: ACCENT, fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', cursor: 'pointer', letterSpacing: '0.06em', transition: 'background 0.15s' }}
             onMouseEnter={(e) => (e.currentTarget.style.background = `${ACCENT}22`)}
             onMouseLeave={(e) => (e.currentTarget.style.background = `${ACCENT}12`)}
           >
@@ -234,7 +234,7 @@ export function KinnarethChat() {
 
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {sessions.length === 0 ? (
-            <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>Sin conversaciones</div>
+            <div style={{ padding: 12, color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>Sin conversaciones</div>
           ) : sessions.map((s) => (
             <div
               key={s.session_id}
@@ -243,8 +243,8 @@ export function KinnarethChat() {
               onMouseEnter={(e) => { if (activeId !== s.session_id) (e.currentTarget as HTMLDivElement).style.background = `${ACCENT}08` }}
               onMouseLeave={(e) => { if (activeId !== s.session_id) (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
             >
-              <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, color: '#E8DCC8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</div>
-              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30', marginTop: 2 }}>{fmtDate(s.updated_at)}</div>
+              <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-base)', color: '#E8DCC8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</div>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 2 }}>{fmtDate(s.updated_at)}</div>
             </div>
           ))}
         </div>
@@ -253,7 +253,7 @@ export function KinnarethChat() {
       {/* Right panel */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {!activeId ? (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)' }}>
             Selecciona o crea una conversación
           </div>
         ) : (
@@ -263,16 +263,16 @@ export function KinnarethChat() {
               <button
                 className="conv-mobile-back"
                 onClick={() => setShowList(true)}
-                style={{ background: 'transparent', border: 'none', color: '#5A4A30', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontSize: 14, padding: '0 4px' }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-lg)', padding: '0 4px' }}
               >
                 ←
               </button>
               <div className={streaming ? 'pulse-dot' : undefined} style={{ width: 6, height: 6, borderRadius: '50%', background: ACCENT, opacity: streaming ? 1 : 0.4, flexShrink: 0 }} />
-              <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, color: '#E8DCC8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-md)', color: '#E8DCC8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {activeTitle}
               </span>
               {streaming && (
-                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: ACCENT, letterSpacing: '0.06em' }}>
+                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: ACCENT, letterSpacing: '0.06em' }}>
                   Kinnareth está procesando...
                 </span>
               )}
@@ -281,18 +281,18 @@ export function KinnarethChat() {
             {/* Messages */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
               {messages.length === 0 && (
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, minHeight: 100 }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', minHeight: 100 }}>
                   Kinnareth en espera
                 </div>
               )}
               {messages.map((msg, i) => (
                 <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                  <div style={{ maxWidth: '80%', padding: '8px 12px', background: msg.role === 'user' ? `${ACCENT}18` : '#13100A', border: `1px solid ${msg.role === 'user' ? ACCENT + '40' : ACCENT + '20'}`, fontFamily: 'DM Sans, sans-serif', fontSize: 13, color: '#E8DCC8', lineHeight: 1.5, wordBreak: 'break-word' }}>
+                  <div style={{ maxWidth: '80%', padding: '8px 12px', background: msg.role === 'user' ? `${ACCENT}18` : '#13100A', border: `1px solid ${msg.role === 'user' ? ACCENT + '40' : ACCENT + '20'}`, fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-md)', color: '#E8DCC8', lineHeight: 1.5, wordBreak: 'break-word' }}>
                     {msg.role === 'user' ? (
                       <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
                     ) : (
                       <>
-                        {msg.content ? <ReactMarkdown>{msg.content}</ReactMarkdown> : <span style={{ color: '#5A4A30', fontStyle: 'italic' }}>Escribiendo...</span>}
+                        {msg.content ? <ReactMarkdown>{msg.content}</ReactMarkdown> : <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Escribiendo...</span>}
                         {streaming && i === messages.length - 1 && (
                           <span className="cursor-blink" style={{ color: ACCENT }}>▌</span>
                         )}
@@ -314,17 +314,17 @@ export function KinnarethChat() {
                 placeholder="Mensaje a Kinnareth..."
                 rows={1}
                 disabled={streaming}
-                style={{ flex: 1, padding: '8px 12px', background: '#13100A', border: `1px solid ${ACCENT}30`, color: '#E8DCC8', fontFamily: 'DM Sans, sans-serif', fontSize: 13, outline: 'none', resize: 'none', minHeight: 36, maxHeight: 100, lineHeight: 1.5, opacity: streaming ? 0.6 : 1 }}
+                style={{ flex: 1, padding: '8px 12px', background: '#13100A', border: `1px solid ${ACCENT}30`, color: '#E8DCC8', fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-md)', outline: 'none', resize: 'none', minHeight: 36, maxHeight: 100, lineHeight: 1.5, opacity: streaming ? 0.6 : 1 }}
                 onFocus={(e) => (e.currentTarget.style.borderColor = `${ACCENT}70`)}
                 onBlur={(e) => (e.currentTarget.style.borderColor = `${ACCENT}30`)}
               />
               <button onMouseDown={startRecording} onMouseUp={stopRecording} onMouseLeave={stopRecording}
-                style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: recording ? `${ACCENT}25` : 'transparent', border: `1px solid ${ACCENT}30`, color: recording ? ACCENT : '#5A4A30', cursor: 'pointer', fontSize: 14, flexShrink: 0 }}
+                style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: recording ? `${ACCENT}25` : 'transparent', border: `1px solid ${ACCENT}30`, color: recording ? ACCENT : 'var(--color-text-muted)', cursor: 'pointer', fontSize: 14, flexShrink: 0 }}
                 title="Mantener para grabar">
                 🎙
               </button>
               <button onClick={sendMessage} disabled={!input.trim() || streaming}
-                style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: input.trim() && !streaming ? `${ACCENT}20` : 'transparent', border: `1px solid ${input.trim() && !streaming ? ACCENT + '50' : ACCENT + '20'}`, color: input.trim() && !streaming ? ACCENT : '#5A4A30', cursor: input.trim() && !streaming ? 'pointer' : 'not-allowed', fontSize: 14, flexShrink: 0 }}
+                style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: input.trim() && !streaming ? `${ACCENT}20` : 'transparent', border: `1px solid ${input.trim() && !streaming ? ACCENT + '50' : ACCENT + '20'}`, color: input.trim() && !streaming ? ACCENT : 'var(--color-text-muted)', cursor: input.trim() && !streaming ? 'pointer' : 'not-allowed', fontSize: 14, flexShrink: 0 }}
                 title="Enviar (Enter)">
                 ▶
               </button>

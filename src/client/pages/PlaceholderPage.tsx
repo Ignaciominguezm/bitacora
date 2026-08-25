@@ -13,7 +13,7 @@ export function PlaceholderPage({ title, icon }: Props) {
         alignItems: 'center',
         justifyContent: 'center',
         gap: 16,
-        color: '#5A4A30'
+        color: 'var(--color-text-muted)'
       }}
     >
       <span style={{ fontSize: 48 }}>{icon}</span>
@@ -28,7 +28,7 @@ export function PlaceholderPage({ title, icon }: Props) {
       >
         {title}
       </h2>
-      <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, margin: 0 }}>
+      <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)', margin: 0 }}>
         — Próximamente —
       </p>
     </div>

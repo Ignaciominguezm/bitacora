@@ -93,7 +93,7 @@ export function EcosystemWidget() {
           justifyContent: 'space-between'
         }}
       >
-        <span style={{ fontFamily: 'Cinzel, serif', fontSize: 11, color: '#A09070', letterSpacing: '0.08em' }}>
+        <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-sm)', color: '#A09070', letterSpacing: '0.08em' }}>
           ECOSISTEMA
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -106,7 +106,7 @@ export function EcosystemWidget() {
               background: anyDown ? '#f87171' : allUp ? '#4ade80' : '#facc15'
             }}
           />
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5A4A30' }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)' }}>
             {lastUpdated ? lastUpdated.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : '—'}
           </span>
         </div>
@@ -114,7 +114,7 @@ export function EcosystemWidget() {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
         {loading ? (
-          <div style={{ padding: '12px', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>
+          <div style={{ padding: '12px', color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
             Comprobando servicios...
           </div>
         ) : (
@@ -133,16 +133,16 @@ export function EcosystemWidget() {
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_COLOR[svc.status], flexShrink: 0 }} />
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#E8DCC8' }}>
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#E8DCC8' }}>
                     {SERVICE_LABELS[svc.name] ?? svc.name}
                   </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: STATUS_COLOR[svc.status] }}>
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: STATUS_COLOR[svc.status] }}>
                     {STATUS_LABEL[svc.status]}
                   </span>
                   {svc.status === 'up' && (
-                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>
+                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
                       {svc.latency}ms
                     </span>
                   )}
@@ -153,7 +153,7 @@ export function EcosystemWidget() {
             {/* VPS server summary */}
             {servers.length > 0 && (
               <>
-                <div style={{ padding: '6px 12px 2px', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.1em' }}>
+                <div style={{ padding: '6px 12px 2px', color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', letterSpacing: '0.1em' }}>
                   SERVIDORES
                 </div>
                 {servers.map((srv) => {
@@ -172,7 +172,7 @@ export function EcosystemWidget() {
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{ width: 6, height: 6, borderRadius: '50%', background: srv.status === 'ok' ? '#4ade80' : '#f87171', flexShrink: 0 }} />
-                        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#A09070' }}>
+                        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#A09070' }}>
                           {srv.name}
                         </span>
                       </div>
@@ -180,8 +180,8 @@ export function EcosystemWidget() {
                         <span
                           style={{
                             fontFamily: 'JetBrains Mono, monospace',
-                            fontSize: 10,
-                            color: diskAlert ? '#f87171' : '#5A4A30',
+                            fontSize: 'var(--text-xs)',
+                            color: diskAlert ? '#f87171' : 'var(--color-text-muted)',
                             fontWeight: diskAlert ? 600 : 400
                           }}
                         >
@@ -197,7 +197,7 @@ export function EcosystemWidget() {
             {/* Push-based stations */}
             {pushServers.length > 0 && (
               <>
-                <div style={{ padding: '6px 12px 2px', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.1em' }}>
+                <div style={{ padding: '6px 12px 2px', color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', letterSpacing: '0.1em' }}>
                   ESTACIONES
                 </div>
                 {pushServers.map((ps) => {
@@ -216,11 +216,11 @@ export function EcosystemWidget() {
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{ width: 6, height: 6, borderRadius: '50%', background: online ? '#4ade80' : '#f87171', flexShrink: 0 }} />
-                        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#A09070' }}>
+                        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#A09070' }}>
                           {ps.hostname}
                         </span>
                       </div>
-                      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: online ? '#5A4A30' : '#f87171' }}>
+                      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: online ? 'var(--color-text-muted)' : '#f87171' }}>
                         {online && cpu !== undefined ? `cpu ${cpu.toFixed(0)}%` : 'offline'}
                       </span>
                     </div>

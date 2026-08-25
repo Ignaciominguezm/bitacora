@@ -69,32 +69,32 @@ export function WhatsAppHistory() {
         style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRight: '1px solid rgba(74,222,128,0.12)' }}
       >
         <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(74,222,128,0.1)', flexShrink: 0 }}>
-          <span style={{ fontFamily: 'Cinzel, serif', fontSize: 11, color: '#A09070', letterSpacing: '0.08em' }}>WHATSAPP — UnrIA</span>
+          <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-sm)', color: '#A09070', letterSpacing: '0.08em' }}>WHATSAPP — UnrIA</span>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {loadingContacts ? (
-            <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>Cargando...</div>
+            <div style={{ padding: 12, color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>Cargando...</div>
           ) : contacts.length === 0 ? (
-            <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>Sin conversaciones</div>
+            <div style={{ padding: 12, color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>Sin conversaciones</div>
           ) : contacts.map((c) => (
             <div
               key={c.session_id}
               onClick={() => selectContact(c)}
-              style={{ padding: '10px 12px', borderBottom: '1px solid rgba(200,168,64,0.06)', cursor: 'pointer', background: selected?.session_id === c.session_id ? 'rgba(74,222,128,0.08)' : 'transparent', borderLeft: `2px solid ${selected?.session_id === c.session_id ? ACCENT_WA : 'transparent'}`, transition: 'all 0.1s' }}
+              style={{ padding: '10px 12px', borderBottom: '1px solid rgba(200,168,64,0.06)', cursor: 'pointer', background: selected?.session_id === c.session_id ? 'rgba(74,222,128,0.22)' : 'transparent', borderLeft: `2px solid ${selected?.session_id === c.session_id ? ACCENT_WA : 'transparent'}`, transition: 'all 0.1s' }}
               onMouseEnter={(e) => { if (selected?.session_id !== c.session_id) (e.currentTarget as HTMLDivElement).style.background = 'rgba(74,222,128,0.04)' }}
               onMouseLeave={(e) => { if (selected?.session_id !== c.session_id) (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
-                <div style={{ width: 5, height: 5, borderRadius: '50%', background: c.last_type === 'ai' ? '#C8A840' : '#5A4A30', flexShrink: 0 }} />
-                <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, color: '#E8DCC8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                <div style={{ width: 5, height: 5, borderRadius: '50%', background: c.last_type === 'ai' ? '#C8A840' : 'var(--color-text-muted)', flexShrink: 0 }} />
+                <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-base)', color: '#E8DCC8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                   {displayName(c)}
                 </span>
-                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5A4A30', flexShrink: 0 }}>
+                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)', flexShrink: 0 }}>
                   {c.message_count}
                 </span>
               </div>
-              <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 11, color: '#7A6A50', paddingLeft: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', paddingLeft: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {truncate(c.last_message)}
               </div>
             </div>
@@ -105,7 +105,7 @@ export function WhatsAppHistory() {
       {/* Right panel — conversation */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {!selected ? (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)' }}>
             Selecciona una conversación
           </div>
         ) : (
@@ -115,16 +115,16 @@ export function WhatsAppHistory() {
               <button
                 className="conv-mobile-back"
                 onClick={() => setShowList(true)}
-                style={{ background: 'transparent', border: 'none', color: '#5A4A30', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontSize: 14, padding: '0 4px' }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-lg)', padding: '0 4px' }}
               >
                 ←
               </button>
               <div style={{ width: 7, height: 7, borderRadius: '50%', background: ACCENT_WA, flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, color: '#E8DCC8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-md)', color: '#E8DCC8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {displayName(selected)}
                 </div>
-                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30' }}>
+                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
                   {selected.phone} · {selected.message_count} mensajes
                 </div>
               </div>
@@ -133,9 +133,9 @@ export function WhatsAppHistory() {
             {/* Messages */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
               {loadingMsgs ? (
-                <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>Cargando...</div>
+                <div style={{ padding: 12, color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>Cargando...</div>
               ) : waMessages.length === 0 ? (
-                <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>Sin mensajes</div>
+                <div style={{ padding: 12, color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>Sin mensajes</div>
               ) : waMessages.filter((m) => m.type !== 'tool').map((msg) => {
                 const isHuman = msg.type === 'human'
                 return (
@@ -146,16 +146,16 @@ export function WhatsAppHistory() {
                       background: isHuman ? 'rgba(90,74,48,0.3)' : '#13100A',
                       border: isHuman ? '1px solid rgba(90,74,48,0.5)' : '1px solid rgba(200,168,64,0.15)',
                       fontFamily: 'DM Sans, sans-serif',
-                      fontSize: 13,
+                      fontSize: 'var(--text-md)',
                       color: '#E8DCC8',
                       lineHeight: 1.5,
                       wordBreak: 'break-word',
                       whiteSpace: 'pre-wrap'
                     }}>
-                      {msg.content || <span style={{ color: '#5A4A30', fontStyle: 'italic' }}>[sin contenido]</span>}
+                      {msg.content || <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>[sin contenido]</span>}
                     </div>
                     {!isHuman && (
-                      <div style={{ marginTop: 2, fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5A4A30', paddingLeft: 2 }}>
+                      <div style={{ marginTop: 2, fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)', paddingLeft: 2 }}>
                         UnrIA
                       </div>
                     )}

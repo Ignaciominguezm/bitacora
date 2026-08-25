@@ -29,7 +29,7 @@ const TIPO_COLOR: Record<string, string> = {
 }
 
 function tipoColor(tipo: string): string {
-  return TIPO_COLOR[tipo] ?? '#5A4A30'
+  return TIPO_COLOR[tipo] ?? 'var(--color-text-muted)'
 }
 
 function relativeTime(iso: string): string {
@@ -214,12 +214,12 @@ export function NotificationCenter({ onNavigate }: Props) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: quickOpen ? 'rgba(200,168,64,0.12)' : 'transparent',
-            border: `1px solid ${quickOpen ? 'rgba(200,168,64,0.35)' : 'rgba(200,168,64,0.1)'}`,
+            background: quickOpen ? 'rgba(200,168,64,0.32)' : 'transparent',
+            border: `1px solid ${quickOpen ? '#C8A840' : 'rgba(200,168,64,0.1)'}`,
             borderRadius: 4,
             cursor: 'pointer',
             fontSize: 14,
-            color: quickOpen ? '#C8A840' : '#5A4A30',
+            color: quickOpen ? '#C8A840' : 'var(--color-text-muted)',
             transition: 'all 0.15s'
           }}
         >
@@ -258,7 +258,7 @@ export function NotificationCenter({ onNavigate }: Props) {
                 background: '#F87171',
                 borderRadius: 8,
                 fontFamily: 'JetBrains Mono, monospace',
-                fontSize: 9,
+                fontSize: 'var(--text-2xs)',
                 color: '#fff',
                 display: 'flex',
                 alignItems: 'center',
@@ -285,13 +285,13 @@ export function NotificationCenter({ onNavigate }: Props) {
               zIndex: 300
             }}
           >
-            <div style={{ padding: '8px 12px', borderBottom: '1px solid rgba(200,168,64,0.1)', fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5A4A30', letterSpacing: '0.1em' }}>
+            <div style={{ padding: '8px 12px', borderBottom: '1px solid rgba(200,168,64,0.1)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)', letterSpacing: '0.1em' }}>
               NOTIFICACIONES
             </div>
 
             {/* Master toggle */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid rgba(200,168,64,0.06)' }}>
-              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#E8DCC8' }}>
+              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#E8DCC8' }}>
                 Activar notificaciones
               </span>
               <QuickToggle checked={globalEnabled} onChange={toggleGlobal} />
@@ -309,7 +309,7 @@ export function NotificationCenter({ onNavigate }: Props) {
                 transition: 'opacity 0.15s'
               }}
             >
-              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#E8DCC8' }}>
+              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#E8DCC8' }}>
                 Mis acciones
               </span>
               <QuickToggle
@@ -333,13 +333,13 @@ export function NotificationCenter({ onNavigate }: Props) {
                 border: 'none',
                 cursor: onNavigate ? 'pointer' : 'default',
                 fontFamily: 'JetBrains Mono, monospace',
-                fontSize: 10,
-                color: '#8B6914',
+                fontSize: 'var(--text-xs)',
+                color: 'var(--color-accent-dark)',
                 letterSpacing: '0.04em',
                 width: '100%'
               }}
               onMouseEnter={(e) => { if (onNavigate) e.currentTarget.style.color = '#C8A840' }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = '#8B6914' }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-accent-dark)' }}
             >
               <span>Más ajustes</span>
               <span>→</span>
@@ -374,7 +374,7 @@ export function NotificationCenter({ onNavigate }: Props) {
                 border: '1px solid rgba(200,168,64,0.3)',
                 color: '#C8A840',
                 fontFamily: 'JetBrains Mono, monospace',
-                fontSize: 10,
+                fontSize: 'var(--text-xs)',
                 letterSpacing: '0.06em',
                 cursor: 'pointer',
                 transition: 'background 0.15s'
@@ -392,8 +392,8 @@ export function NotificationCenter({ onNavigate }: Props) {
               style={{
                 textAlign: 'center',
                 fontFamily: 'JetBrains Mono, monospace',
-                fontSize: 10,
-                color: '#5A4A30',
+                fontSize: 'var(--text-xs)',
+                color: 'var(--color-text-muted)',
                 padding: '4px 0'
               }}
             >
@@ -423,7 +423,7 @@ export function NotificationCenter({ onNavigate }: Props) {
                   <span
                     style={{
                       fontFamily: 'JetBrains Mono, monospace',
-                      fontSize: 9,
+                      fontSize: 'var(--text-2xs)',
                       color: '#E8DCC8',
                       background: '#5C3D0E',
                       border: '1px solid rgba(200,168,64,0.3)',
@@ -436,7 +436,7 @@ export function NotificationCenter({ onNavigate }: Props) {
                   <span
                     style={{
                       fontFamily: 'JetBrains Mono, monospace',
-                      fontSize: 9,
+                      fontSize: 'var(--text-2xs)',
                       color: '#C8A840',
                       letterSpacing: '0.04em'
                     }}
@@ -448,8 +448,8 @@ export function NotificationCenter({ onNavigate }: Props) {
                   <span
                     style={{
                       fontFamily: 'JetBrains Mono, monospace',
-                      fontSize: 9,
-                      color: '#8B6914'
+                      fontSize: 'var(--text-2xs)',
+                      color: 'var(--color-accent-dark)'
                     }}
                   >
                     {relativeTime(n.timestamp)}
@@ -480,7 +480,7 @@ export function NotificationCenter({ onNavigate }: Props) {
                 style={{
                   margin: 0,
                   fontFamily: 'DM Sans, sans-serif',
-                  fontSize: 13,
+                  fontSize: 'var(--text-md)',
                   color: '#A09070',
                   lineHeight: 1.45
                 }}

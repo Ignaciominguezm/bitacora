@@ -89,11 +89,11 @@ function ToggleRow({
       }}
     >
       <div>
-        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: '#E8DCC8' }}>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)', color: '#E8DCC8' }}>
           {label}
         </div>
         {subtitle && (
-          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#5A4A30', marginTop: 2 }}>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 2 }}>
             {subtitle}
           </div>
         )}
@@ -118,8 +118,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
           padding: '8px 16px',
           borderBottom: '1px solid rgba(200,168,64,0.1)',
           fontFamily: 'JetBrains Mono, monospace',
-          fontSize: 9,
-          color: '#5A4A30',
+          fontSize: 'var(--text-2xs)',
+          color: 'var(--color-text-muted)',
           letterSpacing: '0.12em'
         }}
       >
@@ -214,23 +214,23 @@ export function AjustesPage() {
     >
       {/* Page header */}
       <div>
-        <h1 style={{ fontFamily: 'Cinzel, serif', fontSize: 18, color: '#C8A840', letterSpacing: '0.1em', margin: 0 }}>
+        <h1 style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-xl)', color: '#C8A840', letterSpacing: '0.1em', margin: 0 }}>
           AJUSTES
         </h1>
-        <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#5A4A30', margin: '4px 0 0' }}>
+        <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', margin: '4px 0 0' }}>
           Preferencias del sistema
         </p>
       </div>
 
       {loading ? (
-        <div style={{ color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>
+        <div style={{ color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)' }}>
           Cargando...
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 520 }}>
           {/* Notifications card */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            <div style={{ fontFamily: 'Cinzel, serif', fontSize: 13, color: '#C8A840', letterSpacing: '0.08em', marginBottom: 12 }}>
+            <div style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-md)', color: '#C8A840', letterSpacing: '0.08em', marginBottom: 12 }}>
               NOTIFICACIONES
             </div>
 

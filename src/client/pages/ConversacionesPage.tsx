@@ -27,16 +27,16 @@ export function ConversacionesPage() {
               background: 'transparent',
               border: 'none',
               borderBottom: `2px solid ${tab === t.id ? t.color : 'transparent'}`,
-              color: tab === t.id ? t.color : '#5A4A30',
+              color: tab === t.id ? t.color : 'var(--color-text-muted)',
               fontFamily: 'Cinzel, serif',
-              fontSize: 12,
+              fontSize: 'var(--text-base)',
               letterSpacing: '0.08em',
               cursor: 'pointer',
               transition: 'color 0.15s, border-color 0.15s',
               marginBottom: -1
             }}
             onMouseEnter={(e) => { if (tab !== t.id) e.currentTarget.style.color = '#A09070' }}
-            onMouseLeave={(e) => { if (tab !== t.id) e.currentTarget.style.color = '#5A4A30' }}
+            onMouseLeave={(e) => { if (tab !== t.id) e.currentTarget.style.color = 'var(--color-text-muted)' }}
           >
             {t.label.toUpperCase()}
           </button>

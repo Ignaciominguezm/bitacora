@@ -85,8 +85,8 @@ export function LoginPage({ onLogin }: Props) {
         <p
           style={{
             fontFamily: 'JetBrains Mono, monospace',
-            fontSize: 11,
-            color: '#5A4A30',
+            fontSize: 'var(--text-sm)',
+            color: 'var(--color-text-muted)',
             margin: 0,
             letterSpacing: '0.15em',
             textTransform: 'uppercase'
@@ -110,7 +110,7 @@ export function LoginPage({ onLogin }: Props) {
               border: '1px solid rgba(200,168,64,0.25)',
               color: '#E8DCC8',
               fontFamily: 'JetBrains Mono, monospace',
-              fontSize: 14,
+              fontSize: 'var(--text-lg)',
               outline: 'none',
               transition: 'border-color 0.2s'
             }}
@@ -123,7 +123,7 @@ export function LoginPage({ onLogin }: Props) {
               style={{
                 margin: 0,
                 fontFamily: 'JetBrains Mono, monospace',
-                fontSize: 12,
+                fontSize: 'var(--text-base)',
                 color: '#e05050',
                 textAlign: 'center'
               }}
@@ -142,7 +142,7 @@ export function LoginPage({ onLogin }: Props) {
               border: '1px solid rgba(200,168,64,0.4)',
               color: '#C8A840',
               fontFamily: 'Cinzel, serif',
-              fontSize: 13,
+              fontSize: 'var(--text-md)',
               letterSpacing: '0.1em',
               cursor: loading ? 'not-allowed' : 'pointer',
               transition: 'background 0.2s, border-color 0.2s'

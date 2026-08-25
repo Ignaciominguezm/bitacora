@@ -27,7 +27,7 @@ export function ModeSelector({ value, onChange, disabled }: Props) {
               border: `1px solid ${active ? ACCENT + '50' : ACCENT + '20'}`,
               color: active ? ACCENT : MUTED,
               fontFamily: 'JetBrains Mono, monospace',
-              fontSize: 10,
+              fontSize: 'var(--text-xs)',
               letterSpacing: '0.03em',
               cursor: disabled ? 'not-allowed' : 'pointer',
               opacity: disabled ? 0.5 : 1

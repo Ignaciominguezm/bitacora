@@ -26,7 +26,7 @@ export function SessionList({ sessions, activeId, loading, onSelect, onNew }: Pr
             border: `1px solid ${ACCENT}40`,
             color: ACCENT,
             fontFamily: 'JetBrains Mono, monospace',
-            fontSize: 11,
+            fontSize: 'var(--text-sm)',
             cursor: 'pointer',
             letterSpacing: '0.06em'
           }}
@@ -37,11 +37,11 @@ export function SessionList({ sessions, activeId, loading, onSelect, onNew }: Pr
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {loading ? (
-          <div style={{ padding: 12, color: MUTED, fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>
+          <div style={{ padding: 12, color: MUTED, fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
             Cargando...
           </div>
         ) : sessions.length === 0 ? (
-          <div style={{ padding: 12, color: MUTED, fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>
+          <div style={{ padding: 12, color: MUTED, fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
             Sin conversaciones
           </div>
         ) : (
@@ -62,7 +62,7 @@ export function SessionList({ sessions, activeId, loading, onSelect, onNew }: Pr
                 <div
                   style={{
                     fontFamily: 'DM Sans, sans-serif',
-                    fontSize: 12,
+                    fontSize: 'var(--text-base)',
                     color: TEXT,
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
@@ -78,7 +78,7 @@ export function SessionList({ sessions, activeId, loading, onSelect, onNew }: Pr
                     gap: 6,
                     marginTop: 2,
                     fontFamily: 'JetBrains Mono, monospace',
-                    fontSize: 9,
+                    fontSize: 'var(--text-2xs)',
                     color: MUTED
                   }}
                 >

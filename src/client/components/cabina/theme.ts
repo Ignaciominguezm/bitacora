@@ -8,7 +8,12 @@ export const WARN = '#D9A15C'
 export const WARN_BORDER = 'rgba(217, 161, 92, 0.4)'
 export const BG_PANEL = '#13100A'
 export const TEXT = '#E8DCC8'
-export const MUTED = '#5A4A30'
+// #5A4A30 original fallaba contraste (~2.2:1) sobre BG_PANEL y el fondo de
+// página — casi ilegible en metadata/chips/tabs inactivos. #A8916A pasa AA
+// en ambos (6.3:1 sobre #13100A, 6.5:1 sobre #0D0A06) y sigue siendo
+// visiblemente más oscuro que TEXT (2.2x menos luminoso), así que se lee
+// como "secundario", no como texto principal.
+export const MUTED = '#A8916A'
 
 export const AMBITO_LABEL: Record<Ambito, string> = {
   proyectos_personales: 'Proyectos personales',

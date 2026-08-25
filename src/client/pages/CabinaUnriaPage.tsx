@@ -14,13 +14,13 @@ const FUTURE_SECTIONS = ['Decisiones', 'Memoria', 'Tareas CoreWork', 'Adjuntos',
 function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: MUTED, letterSpacing: '0.05em', marginBottom: 2 }}>
+      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: MUTED, letterSpacing: '0.05em', marginBottom: 2 }}>
         {label.toUpperCase()}
       </div>
       <div
         style={{
           fontFamily: mono ? 'JetBrains Mono, monospace' : 'DM Sans, sans-serif',
-          fontSize: mono ? 11 : 13,
+          fontSize: mono ? 'var(--text-sm)' : 'var(--text-md)',
           color: TEXT,
           wordBreak: 'break-all'
         }}
@@ -91,7 +91,7 @@ export function CabinaUnriaPage() {
                 justifyContent: 'center',
                 color: MUTED,
                 fontFamily: 'JetBrains Mono, monospace',
-                fontSize: 12,
+                fontSize: 'var(--text-base)',
                 textAlign: 'center'
               }}
             >
@@ -110,7 +110,7 @@ export function CabinaUnriaPage() {
         </div>
 
         {error && (
-          <div style={{ padding: '4px 20px', fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#F87171' }}>
+          <div style={{ padding: '4px 20px', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#F87171' }}>
             {error}
           </div>
         )}
@@ -123,19 +123,19 @@ export function CabinaUnriaPage() {
           chat con desplegables arriba. */}
       <div style={{ width: 300, flexShrink: 0, borderLeft: `1px solid ${ACCENT}15`, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '14px 16px', borderBottom: `1px solid ${ACCENT}12` }}>
-          <div style={{ fontFamily: 'Cinzel, serif', fontSize: 11, color: ACCENT, letterSpacing: '0.08em', marginBottom: 14 }}>
+          <div style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-sm)', color: ACCENT, letterSpacing: '0.08em', marginBottom: 14 }}>
             CONTEXTO
           </div>
 
           <div style={{ marginBottom: 12 }}>
-            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: MUTED, letterSpacing: '0.05em', marginBottom: 5 }}>
+            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: MUTED, letterSpacing: '0.05em', marginBottom: 5 }}>
               ÁMBITO
             </div>
             <ScopeSelector value={ambito} onChange={setAmbito} disabled={streaming} />
           </div>
 
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: MUTED, letterSpacing: '0.05em', marginBottom: 5 }}>
+            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: MUTED, letterSpacing: '0.05em', marginBottom: 5 }}>
               MODO
             </div>
             <ModeSelector value={modo} onChange={setModo} disabled={streaming} />
@@ -152,7 +152,7 @@ export function CabinaUnriaPage() {
         <div style={{ padding: '4px 16px 16px' }}>
           {FUTURE_SECTIONS.map((label) => (
             <div key={label} style={{ padding: '10px 0', borderTop: `1px solid ${ACCENT}0c` }}>
-              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: MUTED, letterSpacing: '0.05em' }}>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: MUTED, letterSpacing: '0.05em' }}>
                 {label.toUpperCase()}
               </div>
               {/* Reservado para una entrega futura. */}

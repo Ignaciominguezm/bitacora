@@ -4,6 +4,12 @@ import type { Ambito, CabinaMessage, CabinaSessionDetail, CabinaSessionSummary, 
 const DEFAULT_AMBITO: Ambito = 'proyectos_personales'
 const DEFAULT_MODO: Modo = 'diseno'
 const DEFAULT_TITLE = 'Nueva conversación'
+// El servidor ya persiste la respuesta aunque el cliente se desconecte a
+// media respuesta (ver cabina.ts) — lo que falta al volver es saber que
+// sigue en curso y refrescar cuando termine. Tope explícito para no dejar
+// un polling latiendo para siempre si el servidor nunca marca el fin.
+const POLL_INTERVAL_MS = 4000
+const POLL_MAX_ATTEMPTS = 60 // ~4 min a 4s por intento
 
 function emptyMessage(role: CabinaMessage['role'], ambito: Ambito, modo: Modo): CabinaMessage {
   return { role, content: '', ambito, modo }
@@ -22,9 +28,50 @@ export function useAgentSession() {
   const [title, setTitle] = useState(DEFAULT_TITLE)
   const [messages, setMessages] = useState<CabinaMessage[]>([])
   const [streaming, setStreaming] = useState(false)
+  const [sessionProcessing, setSessionProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
+  const pollRef = useRef<{ timer: ReturnType<typeof setInterval> | null; attempts: number }>({ timer: null, attempts: 0 })
+
+  function stopPolling() {
+    if (pollRef.current.timer) {
+      clearInterval(pollRef.current.timer)
+      pollRef.current.timer = null
+    }
+    pollRef.current.attempts = 0
+  }
+
+  // Solo se llama cuando GET /session/:id ya dijo processing:true — pregunta
+  // otra vez cada POLL_INTERVAL_MS hasta que deje de estarlo, con tope.
+  function startPolling(id: string) {
+    stopPolling()
+    pollRef.current.timer = setInterval(async () => {
+      pollRef.current.attempts += 1
+      if (pollRef.current.attempts > POLL_MAX_ATTEMPTS) {
+        stopPolling()
+        if (activeIdRef.current === id) {
+          setSessionProcessing(false)
+          setError('Unria está tardando más de lo esperado. Recarga la conversación para comprobar si respondió.')
+        }
+        return
+      }
+      try {
+        const res = await fetch(`/api/cabina/session/${id}`, { credentials: 'include' })
+        if (!res.ok) return
+        const data: CabinaSessionDetail = await res.json()
+        if (activeIdRef.current !== id) { stopPolling(); return }
+        if (!data.processing) {
+          stopPolling()
+          setSessionProcessing(false)
+          setMessages(Array.isArray(data.messages) ? data.messages : [])
+          setTitle(data.title)
+        }
+      } catch { /* red intermitente — se reintenta en el próximo tick */ }
+    }, POLL_INTERVAL_MS)
+  }
+
+  useEffect(() => () => stopPolling(), [])
   // Permite a sendMessage comprobar, tras un await, si el usuario sigue en
   // la misma sesión antes de tocar `messages` — evita que una respuesta (o
   // un marcado de error) de una sesión abandonada corrompa la que se ve
@@ -50,6 +97,7 @@ export function useAgentSession() {
   async function selectSession(id: string) {
     abortRef.current?.abort()
     setStreaming(false)
+    stopPolling()
     setActiveId(id)
     setError(null)
     try {
@@ -60,6 +108,8 @@ export function useAgentSession() {
       setModo(data.modo)
       setTitle(data.title)
       setMessages(Array.isArray(data.messages) ? data.messages : [])
+      setSessionProcessing(data.processing)
+      if (data.processing) startPolling(id)
     } catch {
       setMessages([])
       setError('No se pudo cargar la conversación')
@@ -284,6 +334,7 @@ export function useAgentSession() {
     title,
     messages,
     streaming,
+    sessionProcessing,
     error,
     setAmbito,
     setModo,

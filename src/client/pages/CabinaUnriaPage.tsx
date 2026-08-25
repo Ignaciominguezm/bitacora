@@ -43,6 +43,7 @@ export function CabinaUnriaPage() {
     title,
     messages,
     streaming,
+    sessionProcessing,
     error,
     setAmbito,
     setModo,
@@ -161,13 +162,19 @@ export function CabinaUnriaPage() {
           <div ref={messagesEndRef} />
         </div>
 
+        {sessionProcessing && !streaming && (
+          <div style={{ padding: '4px 20px', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: MUTED }}>
+            Unria sigue pensando en esta conversación...
+          </div>
+        )}
+
         {error && (
           <div style={{ padding: '4px 20px', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#F87171' }}>
             {error}
           </div>
         )}
 
-        <MessageInput value={input} onChange={setInput} onSend={handleSend} disabled={streaming} placeholder="Mensaje a Unria..." />
+        <MessageInput value={input} onChange={setInput} onSend={handleSend} disabled={streaming || sessionProcessing} placeholder="Mensaje a Unria..." />
       </div>
 
       {/* Columna derecha — panel de contexto, persistente. La conversación

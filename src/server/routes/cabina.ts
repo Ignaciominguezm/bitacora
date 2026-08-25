@@ -66,7 +66,11 @@ cabinaRoutes.get('/session/:id', async (c) => {
     [id]
   )
 
-  return c.json({ ...sessionResult.rows[0], messages: messagesResult.rows })
+  // processing: si hay un turno en curso para esta sesión (ver
+  // processingSessions más abajo). Permite al cliente reconectar tras
+  // volver de otra pestaña/sesión y saber si debe esperar una respuesta
+  // que el servidor sigue generando, en vez de asumir que se perdió.
+  return c.json({ ...sessionResult.rows[0], messages: messagesResult.rows, processing: processingSessions.has(id) })
 })
 
 // PATCH manual: título, ámbito/modo "actual" sin enviar mensaje, y/o

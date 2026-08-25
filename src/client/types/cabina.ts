@@ -25,4 +25,7 @@ export interface CabinaSessionSummary {
 
 export interface CabinaSessionDetail extends CabinaSessionSummary {
   messages: CabinaMessage[]
+  // true si el servidor sigue generando un turno para esta sesión (p. ej.
+  // se envió un mensaje y se cambió de pestaña antes de que respondiera).
+  processing: boolean
 }

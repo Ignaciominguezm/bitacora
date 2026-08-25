@@ -27,7 +27,7 @@
   --color-bg-secondary: #13100A;
   --color-bg-card: #1A1510;
   --color-accent: #C8A840;
-  --color-accent-dark: #8B6914;
+  --color-accent-dark: #9C7C34; /* antes #8B6914 — 3.7-3.9:1 sobre fondo real, bajo AA (4.5:1) */
   --color-text-primary: #E8DCC8;
   --color-text-secondary: #A09070;
   --color-text-muted: #5A4A30;

@@ -98,18 +98,18 @@ export function TeamWidget() {
         <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-sm)', color: '#A09070', letterSpacing: '0.08em' }}>
           EQUIPO HOY
         </span>
-        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
           {today}
         </span>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
         {loading ? (
-          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
+          <div style={{ padding: 12, color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
             Cargando...
           </div>
         ) : isEmpty ? (
-          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
+          <div style={{ padding: 12, color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
             Sin actividad hoy
           </div>
         ) : (
@@ -134,7 +134,7 @@ export function TeamWidget() {
             {/* Fichajes */}
             {data.fichajes.length > 0 && (
               <div style={{ marginBottom: 4 }}>
-                <div style={{ padding: '2px 12px', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', letterSpacing: '0.1em' }}>
+                <div style={{ padding: '2px 12px', color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', letterSpacing: '0.1em' }}>
                   FICHAJES
                 </div>
                 {data.fichajes.map((te, i) => {
@@ -145,7 +145,7 @@ export function TeamWidget() {
                         <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-base)', color: '#E8DCC8' }}>{te.name}</span>
                         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           {te.entry_type && (
-                            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#7A6A50', background: 'rgba(200,168,64,0.08)', border: '1px solid rgba(200,168,64,0.15)', padding: '1px 5px', letterSpacing: '0.04em' }}>
+                            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)', background: 'rgba(200,168,64,0.08)', border: '1px solid rgba(200,168,64,0.15)', padding: '1px 5px', letterSpacing: '0.04em' }}>
                               {te.entry_type === 'TRABAJO' ? 'Laboral' : te.entry_type === 'FORMACION' ? 'Formación' : te.entry_type}
                             </span>
                           )}
@@ -157,8 +157,8 @@ export function TeamWidget() {
                       </div>
                       {task && (
                         <div style={{ marginTop: 2, display: 'flex', alignItems: 'baseline', gap: 6, paddingLeft: 2 }}>
-                          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30', flexShrink: 0 }}>↳</span>
-                          <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-sm)', color: '#7A6A50', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', flexShrink: 0 }}>↳</span>
+                          <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {task.task_title}
                             {task.client_name && (
                               <span style={{ color: '#4A3A20', marginLeft: 5 }}>· {task.client_name}</span>
@@ -175,7 +175,7 @@ export function TeamWidget() {
             {/* Ausencias */}
             {data.ausencias.length > 0 && (
               <div>
-                <div style={{ padding: '2px 12px', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', letterSpacing: '0.1em' }}>
+                <div style={{ padding: '2px 12px', color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', letterSpacing: '0.1em' }}>
                   AUSENCIAS
                 </div>
                 {data.ausencias.map((ab, i) => (

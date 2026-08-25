@@ -13,7 +13,7 @@ export function CRMPage() {
     padding: '5px 16px',
     background: view === v ? 'rgba(200,168,64,0.32)' : 'transparent',
     border: view === v ? '1px solid #C8A840' : '1px solid rgba(200,168,64,0.15)',
-    color: view === v ? '#C8A840' : '#5A4A30',
+    color: view === v ? '#C8A840' : 'var(--color-text-muted)',
     fontFamily: 'JetBrains Mono, monospace' as const,
     fontSize: 'var(--text-sm)',
     letterSpacing: '0.06em',
@@ -33,7 +33,7 @@ export function CRMPage() {
             onClick={() => setView('admin')}
             style={{ ...toggleBtn('admin', 'Vista Admin'), borderRadius: '3px 0 0 3px' }}
             onMouseEnter={(e) => { if (view !== 'admin') e.currentTarget.style.color = '#A09070' }}
-            onMouseLeave={(e) => { if (view !== 'admin') e.currentTarget.style.color = '#5A4A30' }}
+            onMouseLeave={(e) => { if (view !== 'admin') e.currentTarget.style.color = 'var(--color-text-muted)' }}
           >
             Vista Admin
           </button>
@@ -41,7 +41,7 @@ export function CRMPage() {
             onClick={() => setView('cliente')}
             style={{ ...toggleBtn('cliente', 'Vista Cliente'), borderRadius: '0 3px 3px 0', marginLeft: -1 }}
             onMouseEnter={(e) => { if (view !== 'cliente') e.currentTarget.style.color = '#A09070' }}
-            onMouseLeave={(e) => { if (view !== 'cliente') e.currentTarget.style.color = '#5A4A30' }}
+            onMouseLeave={(e) => { if (view !== 'cliente') e.currentTarget.style.color = 'var(--color-text-muted)' }}
           >
             Vista Cliente
           </button>

@@ -93,7 +93,7 @@ function pillStyle(active: boolean): React.CSSProperties {
     padding: '5px 16px',
     background: active ? 'rgba(200,168,64,0.32)' : 'transparent',
     border: active ? '1px solid #C8A840' : '1px solid rgba(200,168,64,0.15)',
-    color: active ? '#C8A840' : '#5A4A30',
+    color: active ? '#C8A840' : 'var(--color-text-muted)',
     fontFamily: 'JetBrains Mono, monospace',
     fontSize: 'var(--text-sm)',
     letterSpacing: '0.06em',
@@ -212,7 +212,7 @@ export function TiempoPage() {
         <h1 style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-xl)', color: '#C8A840', letterSpacing: '0.1em', margin: 0 }}>
           TIEMPO
         </h1>
-        <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#5A4A30', margin: '4px 0 0' }}>
+        <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', margin: '4px 0 0' }}>
           Reporte interno de horas trabajadas
         </p>
       </div>
@@ -236,14 +236,14 @@ export function TiempoPage() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>Desde</span>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>Desde</span>
           <input
             type="date"
             value={customFrom}
             onChange={(e) => { setCustomFrom(e.target.value); setUseCustomRange(true) }}
             style={dateInputStyle()}
           />
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>Hasta</span>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>Hasta</span>
           <input
             type="date"
             value={customTo}
@@ -291,7 +291,7 @@ export function TiempoPage() {
             background: 'transparent',
             border: 'none',
             borderBottom: tab === 'user' ? '2px solid #C8A840' : '2px solid transparent',
-            color: tab === 'user' ? '#C8A840' : '#5A4A30',
+            color: tab === 'user' ? '#C8A840' : 'var(--color-text-muted)',
             fontFamily: 'JetBrains Mono, monospace',
             fontSize: 'var(--text-sm)',
             letterSpacing: '0.06em',
@@ -307,7 +307,7 @@ export function TiempoPage() {
             background: 'transparent',
             border: 'none',
             borderBottom: tab === 'client' ? '2px solid #C8A840' : '2px solid transparent',
-            color: tab === 'client' ? '#C8A840' : '#5A4A30',
+            color: tab === 'client' ? '#C8A840' : 'var(--color-text-muted)',
             fontFamily: 'JetBrains Mono, monospace',
             fontSize: 'var(--text-sm)',
             letterSpacing: '0.06em',
@@ -319,11 +319,11 @@ export function TiempoPage() {
       </div>
 
       {loading ? (
-        <div style={{ color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)' }}>Cargando...</div>
+        <div style={{ color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)' }}>Cargando...</div>
       ) : tab === 'user' ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {(data?.by_user ?? []).length === 0 && (
-            <div style={{ color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>Sin registros</div>
+            <div style={{ color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>Sin registros</div>
           )}
           {data?.by_user.map((u) => {
             const topKey = `u-${u.user_id}`
@@ -373,7 +373,7 @@ export function TiempoPage() {
                                     paddingLeft: 6
                                   }}
                                 >
-                                  <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-sm)', color: '#7A6A50' }}>{t.task_title}</span>
+                                  <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>{t.task_title}</span>
                                   <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                     {t.running && (
                                       <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#4ade80', letterSpacing: '0.04em' }}>
@@ -383,7 +383,7 @@ export function TiempoPage() {
                                     {t.suspicious && (
                                       <span style={{ fontSize: 'var(--text-sm)', color: '#facc15' }}>⚠</span>
                                     )}
-                                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>{fmtDuration(t.total_minutes)}</span>
+                                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>{fmtDuration(t.total_minutes)}</span>
                                   </span>
                                 </div>
                               ))}
@@ -401,7 +401,7 @@ export function TiempoPage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {(data?.by_client ?? []).length === 0 && (
-            <div style={{ color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>Sin registros</div>
+            <div style={{ color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>Sin registros</div>
           )}
           {data?.by_client.map((cl) => {
             const topKey = `c-${cl.client_name}`
@@ -451,7 +451,7 @@ export function TiempoPage() {
                                     paddingLeft: 6
                                   }}
                                 >
-                                  <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-sm)', color: '#7A6A50' }}>{t.task_title}</span>
+                                  <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>{t.task_title}</span>
                                   <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                     {t.running && (
                                       <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#4ade80', letterSpacing: '0.04em' }}>
@@ -461,7 +461,7 @@ export function TiempoPage() {
                                     {t.suspicious && (
                                       <span style={{ fontSize: 'var(--text-sm)', color: '#facc15' }}>⚠</span>
                                     )}
-                                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>{fmtDuration(t.total_minutes)}</span>
+                                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>{fmtDuration(t.total_minutes)}</span>
                                   </span>
                                 </div>
                               ))}

@@ -61,15 +61,15 @@ export function FinanzasDashboard({
       </div>
 
       <div>
-        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#5A4A30', letterSpacing: '0.12em', marginBottom: 4 }}>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)', letterSpacing: '0.12em', marginBottom: 4 }}>
           ÚLTIMO SALDO REGISTRADO POR ÁMBITO
         </div>
-        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30', marginBottom: 12 }}>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 12 }}>
           Informativo. Cada ámbito es independiente — nunca se suman entre sí.
         </div>
 
         {loading ? (
-          <div style={{ color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)' }}>Cargando...</div>
+          <div style={{ color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)' }}>Cargando...</div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
             {ambitos.map((a) => {
@@ -96,7 +96,7 @@ export function FinanzasDashboard({
                   <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xl)', color: '#C8A840' }}>
                     {total !== null ? `${formatSaldo(total)} EUR` : 'sin saldos aún'}
                   </span>
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
                     {propias.length} cuenta{propias.length !== 1 ? 's' : ''} activa{propias.length !== 1 ? 's' : ''}
                   </span>
                 </div>

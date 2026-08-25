@@ -34,6 +34,8 @@ function InfoRow({ label, value, mono }: { label: string; value: string; mono?: 
 export function CabinaUnriaPage() {
   const {
     sessions,
+    archivedSessions,
+    viewArchived,
     loadingHistory,
     activeId,
     ambito,
@@ -46,7 +48,11 @@ export function CabinaUnriaPage() {
     setModo,
     selectSession,
     newSession,
-    sendMessage
+    sendMessage,
+    setArchivedView,
+    archiveSession,
+    unarchiveSession,
+    deleteSession
   } = useAgentSession()
 
   const [input, setInput] = useState('')
@@ -75,8 +81,54 @@ export function CabinaUnriaPage() {
   return (
     <div style={{ flex: 1, display: 'flex', overflow: 'hidden', background: '#0D0A06' }}>
       {/* Columna izquierda — historial de sesiones */}
-      <div style={{ width: 260, flexShrink: 0, borderRight: `1px solid ${ACCENT}15`, overflow: 'hidden' }}>
-        <SessionList sessions={sessions} activeId={activeId} loading={loadingHistory} onSelect={selectSession} onNew={newSession} />
+      <div style={{ width: 260, flexShrink: 0, borderRight: `1px solid ${ACCENT}15`, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', borderBottom: `1px solid ${ACCENT}10`, flexShrink: 0 }}>
+          {(['activas', 'archivadas'] as const).map((tab) => {
+            const isArchivedTab = tab === 'archivadas'
+            const tabActive = viewArchived === isArchivedTab
+            return (
+              <button
+                key={tab}
+                onClick={() => void setArchivedView(isArchivedTab)}
+                style={{
+                  flex: 1,
+                  padding: '8px 0',
+                  background: 'transparent',
+                  border: 'none',
+                  borderBottom: `2px solid ${tabActive ? ACCENT : 'transparent'}`,
+                  color: tabActive ? ACCENT : MUTED,
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: 'var(--text-2xs)',
+                  letterSpacing: '0.05em',
+                  cursor: 'pointer'
+                }}
+              >
+                {tab.toUpperCase()}
+              </button>
+            )
+          })}
+        </div>
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          {viewArchived ? (
+            <SessionList
+              sessions={archivedSessions}
+              activeId={activeId}
+              onSelect={selectSession}
+              variant="archived"
+              onUnarchive={unarchiveSession}
+              onDelete={deleteSession}
+            />
+          ) : (
+            <SessionList
+              sessions={sessions}
+              activeId={activeId}
+              loading={loadingHistory}
+              onSelect={selectSession}
+              onNew={newSession}
+              onArchive={archiveSession}
+            />
+          )}
+        </div>
       </div>
 
       {/* Columna central — la conversación */}

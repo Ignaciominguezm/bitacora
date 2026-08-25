@@ -18,6 +18,7 @@ export interface CabinaSessionSummary {
   ambito: Ambito
   modo: Modo
   title: string
+  archived_at: string | null
   created_at: string
   updated_at: string
 }

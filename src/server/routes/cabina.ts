@@ -25,11 +25,18 @@ function isModo(v: unknown): v is Modo {
   return typeof v === 'string' && (MODOS as string[]).includes(v)
 }
 
+// Sin ?archived=true: solo activas (comportamiento por defecto — las
+// archivadas se ocultan de la lista principal). Con ?archived=true: solo
+// archivadas. 'archived' es un booleano que decidimos aquí mismo (true/
+// false), nunca se interpola el query param en crudo.
 cabinaRoutes.get('/history', async (c) => {
   if (!bitacoraDb) return c.json([])
+  const archived = c.req.query('archived') === 'true'
   const result = await bitacoraDb.query(
-    `SELECT id, ambito, modo, title, created_at, updated_at
-     FROM cabina_sessions ORDER BY updated_at DESC LIMIT 100`
+    `SELECT id, ambito, modo, title, archived_at, created_at, updated_at
+     FROM cabina_sessions
+     WHERE archived_at IS ${archived ? 'NOT NULL' : 'NULL'}
+     ORDER BY updated_at DESC LIMIT 100`
   )
   return c.json(result.rows)
 })
@@ -62,24 +69,43 @@ cabinaRoutes.get('/session/:id', async (c) => {
   return c.json({ ...sessionResult.rows[0], messages: messagesResult.rows })
 })
 
-// PATCH manual: título, y/o cambio de ámbito/modo "actual" de la sesión sin
-// enviar mensaje (p. ej. el selector de contexto lo permite en el futuro).
+// PATCH manual: título, ámbito/modo "actual" sin enviar mensaje, y/o
+// archivar/desarchivar (archived: true|false). archived es reversible —
+// el borrado definitivo es un endpoint aparte (DELETE, más abajo).
 cabinaRoutes.patch('/session/:id', async (c) => {
   if (!bitacoraDb) return c.json({ error: 'DB not configured' }, 503)
   const id = c.req.param('id')
-  const { title, ambito, modo } = await c.req.json<{ title?: string; ambito?: string; modo?: string }>()
+  const { title, ambito, modo, archived } = await c.req.json<{
+    title?: string; ambito?: string; modo?: string; archived?: boolean
+  }>()
 
   if (ambito !== undefined && !isAmbito(ambito)) return c.json({ error: 'ambito inválido' }, 400)
   if (modo !== undefined && !isModo(modo)) return c.json({ error: 'modo inválido' }, 400)
 
   const result = await bitacoraDb.query(
     `UPDATE cabina_sessions
-     SET title = COALESCE($1, title), ambito = COALESCE($2, ambito), modo = COALESCE($3, modo), updated_at = now()
+     SET title = COALESCE($1, title), ambito = COALESCE($2, ambito), modo = COALESCE($3, modo),
+         archived_at = CASE WHEN $5::boolean IS NULL THEN archived_at WHEN $5::boolean THEN now() ELSE NULL END,
+         updated_at = now()
      WHERE id = $4 RETURNING *`,
-    [title?.trim() || null, ambito ?? null, modo ?? null, id]
+    [title?.trim() || null, ambito ?? null, modo ?? null, id, archived ?? null]
   )
   if (result.rows.length === 0) return c.json({ error: 'Not found' }, 404)
   return c.json(result.rows[0])
+})
+
+// Borrado definitivo — irreversible. Solo si ya está archivada (el mismo
+// "dos pasos deliberados" se aplica aquí, no solo en la UI): cabina_messages
+// cae por ON DELETE CASCADE.
+cabinaRoutes.delete('/session/:id', async (c) => {
+  if (!bitacoraDb) return c.json({ error: 'DB not configured' }, 503)
+  const id = c.req.param('id')
+  const result = await bitacoraDb.query(
+    'DELETE FROM cabina_sessions WHERE id = $1 AND archived_at IS NOT NULL RETURNING id',
+    [id]
+  )
+  if (result.rows.length === 0) return c.json({ error: 'Sesión no encontrada o no está archivada' }, 404)
+  return c.json({ ok: true })
 })
 
 cabinaRoutes.post('/session/:id/message', async (c) => {

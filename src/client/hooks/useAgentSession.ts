@@ -13,6 +13,8 @@ function emptyMessage(role: CabinaMessage['role'], ambito: Ambito, modo: Modo): 
 // /api/cabina/* — no conoce el gateway ni cómo se genera la respuesta.
 export function useAgentSession() {
   const [sessions, setSessions] = useState<CabinaSessionSummary[]>([])
+  const [archivedSessions, setArchivedSessions] = useState<CabinaSessionSummary[]>([])
+  const [viewArchived, setViewArchived] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [ambito, setAmbito] = useState<Ambito>(DEFAULT_AMBITO)
@@ -100,7 +102,7 @@ export function useAgentSession() {
       const data: CabinaSessionDetail = await res.json()
       const summary: CabinaSessionSummary = {
         id: data.id, ambito: data.ambito, modo: data.modo, title: data.title,
-        created_at: data.created_at, updated_at: data.updated_at
+        archived_at: data.archived_at, created_at: data.created_at, updated_at: data.updated_at
       }
       setSessions((prev) => [summary, ...prev.filter((s) => s.id !== id)])
       // activeIdRef, no el `activeId` de estado: este closure puede venir de
@@ -126,6 +128,71 @@ export function useAgentSession() {
       setSessions((prev) => prev.map((s) => (s.id === data.id ? data : s)))
     } catch {
       setError('No se pudo renombrar la conversación')
+    }
+  }
+
+  // Cambia entre la lista activa y la archivada, recargando desde el
+  // servidor (cubre también el caso de volver a "Activas" tras desarchivar
+  // algo, sin tener que sincronizar los dos arrays a mano).
+  async function setArchivedView(archived: boolean) {
+    setViewArchived(archived)
+    try {
+      const res = await fetch(`/api/cabina/history?archived=${archived}`, { credentials: 'include' })
+      const data: CabinaSessionSummary[] = await res.json()
+      if (archived) setArchivedSessions(data)
+      else setSessions(data)
+    } catch {
+      setError('No se pudo cargar el historial')
+    }
+  }
+
+  // Archivar es reversible — solo oculta de la lista activa. Si era la
+  // sesión abierta, la deseleccionamos (ya no tiene sentido seguir
+  // "sobre" una conversación que acaba de desaparecer de la lista).
+  async function archiveSession(id: string) {
+    try {
+      const res = await fetch(`/api/cabina/session/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ archived: true })
+      })
+      if (!res.ok) throw new Error('archive failed')
+      setSessions((prev) => prev.filter((s) => s.id !== id))
+      if (activeId === id) {
+        setActiveId(null)
+        setMessages([])
+        setTitle(DEFAULT_TITLE)
+      }
+    } catch {
+      setError('No se pudo archivar la conversación')
+    }
+  }
+
+  async function unarchiveSession(id: string) {
+    try {
+      const res = await fetch(`/api/cabina/session/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ archived: false })
+      })
+      if (!res.ok) throw new Error('unarchive failed')
+      setArchivedSessions((prev) => prev.filter((s) => s.id !== id))
+    } catch {
+      setError('No se pudo desarchivar la conversación')
+    }
+  }
+
+  // Irreversible — el servidor ya exige que esté archivada antes de
+  // borrarla (mismo "dos pasos" reforzado del lado del backend).
+  async function deleteSession(id: string) {
+    try {
+      const res = await fetch(`/api/cabina/session/${id}`, { method: 'DELETE', credentials: 'include' })
+      if (!res.ok) throw new Error('delete failed')
+      setArchivedSessions((prev) => prev.filter((s) => s.id !== id))
+    } catch {
+      setError('No se pudo borrar la conversación')
     }
   }
 
@@ -208,6 +275,8 @@ export function useAgentSession() {
 
   return {
     sessions,
+    archivedSessions,
+    viewArchived,
     loadingHistory,
     activeId,
     ambito,
@@ -221,6 +290,10 @@ export function useAgentSession() {
     selectSession,
     newSession,
     renameSession,
-    sendMessage
+    sendMessage,
+    setArchivedView,
+    archiveSession,
+    unarchiveSession,
+    deleteSession
   }
 }

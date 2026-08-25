@@ -93,7 +93,10 @@ cabinaRoutes.post('/session/:id/message', async (c) => {
   if (!text) return c.json({ error: 'message vacío' }, 400)
   if (!isAmbito(ambito) || !isModo(modo)) return c.json({ error: 'ambito/modo inválidos' }, 400)
 
-  const sessionResult = await db.query<{ title: string }>('SELECT title FROM cabina_sessions WHERE id = $1', [sessionId])
+  const sessionResult = await db.query<{ title: string; summary: string | null }>(
+    'SELECT title, summary FROM cabina_sessions WHERE id = $1',
+    [sessionId]
+  )
   if (sessionResult.rows.length === 0) return c.json({ error: 'Sesión no encontrada' }, 404)
   const session = sessionResult.rows[0]
 
@@ -136,7 +139,7 @@ cabinaRoutes.post('/session/:id/message', async (c) => {
         let clientConnected = true
 
         try {
-          for await (const chunk of getGateway().send(text, { ambito, modo }, { sessionId, title: session.title, history })) {
+          for await (const chunk of getGateway().send(text, { ambito, modo }, { sessionId, title: session.title, summary: session.summary, history })) {
             fullContent += chunk
             if (clientConnected) {
               try {

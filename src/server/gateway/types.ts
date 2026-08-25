@@ -14,6 +14,10 @@ export interface AgentMessage {
 export interface AgentSessionRef {
   sessionId: string
   title: string
+  // Resumen de la conversación completa, si existe. Nada lo genera todavía
+  // (mecanismo aparte, fuera de esta entrega) — hasta entonces llega null y
+  // los adaptadores que lo usen caen a un estado intermedio explícito.
+  summary: string | null
   history: AgentMessage[]
 }
 

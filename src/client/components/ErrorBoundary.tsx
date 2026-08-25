@@ -34,7 +34,7 @@ export class ErrorBoundary extends Component<Props, State> {
             gap: 6
           }}
         >
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
             {this.props.label ?? 'widget'}
           </span>
           <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#f87171', textAlign: 'center' }}>

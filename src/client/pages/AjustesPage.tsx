@@ -93,7 +93,7 @@ function ToggleRow({
           {label}
         </div>
         {subtitle && (
-          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30', marginTop: 2 }}>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 2 }}>
             {subtitle}
           </div>
         )}
@@ -119,7 +119,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
           borderBottom: '1px solid rgba(200,168,64,0.1)',
           fontFamily: 'JetBrains Mono, monospace',
           fontSize: 'var(--text-2xs)',
-          color: '#5A4A30',
+          color: 'var(--color-text-muted)',
           letterSpacing: '0.12em'
         }}
       >
@@ -217,13 +217,13 @@ export function AjustesPage() {
         <h1 style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-xl)', color: '#C8A840', letterSpacing: '0.1em', margin: 0 }}>
           AJUSTES
         </h1>
-        <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#5A4A30', margin: '4px 0 0' }}>
+        <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', margin: '4px 0 0' }}>
           Preferencias del sistema
         </p>
       </div>
 
       {loading ? (
-        <div style={{ color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)' }}>
+        <div style={{ color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)' }}>
           Cargando...
         </div>
       ) : (

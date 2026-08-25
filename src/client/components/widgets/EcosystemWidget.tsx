@@ -106,7 +106,7 @@ export function EcosystemWidget() {
               background: anyDown ? '#f87171' : allUp ? '#4ade80' : '#facc15'
             }}
           />
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#5A4A30' }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)' }}>
             {lastUpdated ? lastUpdated.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : '—'}
           </span>
         </div>
@@ -114,7 +114,7 @@ export function EcosystemWidget() {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
         {loading ? (
-          <div style={{ padding: '12px', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
+          <div style={{ padding: '12px', color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
             Comprobando servicios...
           </div>
         ) : (
@@ -142,7 +142,7 @@ export function EcosystemWidget() {
                     {STATUS_LABEL[svc.status]}
                   </span>
                   {svc.status === 'up' && (
-                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>
+                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
                       {svc.latency}ms
                     </span>
                   )}
@@ -153,7 +153,7 @@ export function EcosystemWidget() {
             {/* VPS server summary */}
             {servers.length > 0 && (
               <>
-                <div style={{ padding: '6px 12px 2px', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', letterSpacing: '0.1em' }}>
+                <div style={{ padding: '6px 12px 2px', color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', letterSpacing: '0.1em' }}>
                   SERVIDORES
                 </div>
                 {servers.map((srv) => {
@@ -181,7 +181,7 @@ export function EcosystemWidget() {
                           style={{
                             fontFamily: 'JetBrains Mono, monospace',
                             fontSize: 'var(--text-xs)',
-                            color: diskAlert ? '#f87171' : '#5A4A30',
+                            color: diskAlert ? '#f87171' : 'var(--color-text-muted)',
                             fontWeight: diskAlert ? 600 : 400
                           }}
                         >
@@ -197,7 +197,7 @@ export function EcosystemWidget() {
             {/* Push-based stations */}
             {pushServers.length > 0 && (
               <>
-                <div style={{ padding: '6px 12px 2px', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', letterSpacing: '0.1em' }}>
+                <div style={{ padding: '6px 12px 2px', color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', letterSpacing: '0.1em' }}>
                   ESTACIONES
                 </div>
                 {pushServers.map((ps) => {
@@ -220,7 +220,7 @@ export function EcosystemWidget() {
                           {ps.hostname}
                         </span>
                       </div>
-                      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: online ? '#5A4A30' : '#f87171' }}>
+                      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: online ? 'var(--color-text-muted)' : '#f87171' }}>
                         {online && cpu !== undefined ? `cpu ${cpu.toFixed(0)}%` : 'offline'}
                       </span>
                     </div>

@@ -75,11 +75,11 @@ export function TasksWidget() {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
         {loading ? (
-          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
+          <div style={{ padding: 12, color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
             Cargando...
           </div>
         ) : tasks.length === 0 ? (
-          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
+          <div style={{ padding: 12, color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
             Sin tareas urgentes ✓
           </div>
         ) : (
@@ -99,10 +99,10 @@ export function TasksWidget() {
                   style={{
                     fontFamily: 'JetBrains Mono, monospace',
                     fontSize: 'var(--text-2xs)',
-                    color: PRIORITY_COLOR[task.priority] || '#5A4A30',
-                    background: `${PRIORITY_COLOR[task.priority] || '#5A4A30'}18`,
+                    color: PRIORITY_COLOR[task.priority] || 'var(--color-text-muted)',
+                    background: `${PRIORITY_COLOR[task.priority] || 'var(--color-text-muted)'}18`,
                     padding: '1px 4px',
-                    border: `1px solid ${PRIORITY_COLOR[task.priority] || '#5A4A30'}40`,
+                    border: `1px solid ${PRIORITY_COLOR[task.priority] || 'var(--color-text-muted)'}40`,
                     flexShrink: 0
                   }}
                 >
@@ -124,7 +124,7 @@ export function TasksWidget() {
               </div>
               <div style={{ display: 'flex', gap: 8, paddingLeft: 0 }}>
                 {task.client_name && (
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
                     {task.client_name}
                   </span>
                 )}
@@ -140,7 +140,7 @@ export function TasksWidget() {
                   </span>
                 )}
                 {task.assigned_to && (
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
                     → {task.assigned_to}
                   </span>
                 )}

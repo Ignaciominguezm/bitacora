@@ -124,7 +124,7 @@ const inputStyle: React.CSSProperties = {
 }
 
 function deltaColor(delta: number | null): string {
-  if (delta === null || delta === 0) return '#5A4A30'
+  if (delta === null || delta === 0) return 'var(--color-text-muted)'
   return delta > 0 ? '#4ade80' : '#f87171'
 }
 
@@ -355,7 +355,7 @@ export function RevisionSemanalView({ ambitos }: { ambitos: Ambito[] }) {
                 fontFamily: 'Cinzel, serif',
                 fontSize: 'var(--text-base)',
                 letterSpacing: '0.06em',
-                color: active ? '#E8DCC8' : '#5A4A30',
+                color: active ? '#E8DCC8' : 'var(--color-text-muted)',
                 background: active ? hexToRgba(a.color, 0.32) : 'transparent',
                 border: `1px solid ${active ? a.color : 'rgba(200,168,64,0.15)'}`,
                 padding: '8px 16px',
@@ -370,7 +370,7 @@ export function RevisionSemanalView({ ambitos }: { ambitos: Ambito[] }) {
       </div>
 
       {loadingRevision ? (
-        <div style={{ color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)' }}>Cargando...</div>
+        <div style={{ color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)' }}>Cargando...</div>
       ) : selectedAmbito && ambitoInfo ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <SaldosBlock
@@ -420,7 +420,7 @@ export function RevisionSemanalView({ ambitos }: { ambitos: Ambito[] }) {
           />
         </div>
       ) : (
-        <div style={{ color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)' }}>
+        <div style={{ color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)' }}>
           Elige un ámbito para trabajar en él.
         </div>
       )}
@@ -452,7 +452,7 @@ function SaldosBlock({
   return (
     <Section title="SALDOS DE LA SEMANA" color={ambito.color}>
       {cuentas.length === 0 && (
-        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#5A4A30', padding: '8px 4px' }}>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', padding: '8px 4px' }}>
           Este ámbito no tiene cuentas activas todavía.
         </div>
       )}
@@ -468,9 +468,9 @@ function SaldosBlock({
               <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-md)', color: '#E8DCC8', minWidth: 140 }}>{cta.nombre}</span>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>
+                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
                   Semana anterior:{' '}
-                  <span style={{ color: '#7A6A50' }}>
+                  <span style={{ color: 'var(--color-text-muted)' }}>
                     {cmp?.saldo_anterior !== null && cmp?.saldo_anterior !== undefined ? `${formatSaldo(cmp.saldo_anterior)} ${cta.moneda}` : '—'}
                   </span>
                 </div>
@@ -588,9 +588,9 @@ function PrevisionesBlock({
         body: 'Dinero que esperas que entre o salga, pero que todavía NO ha pasado por el banco.\n- Cobros previstos: lo que esperas recibir (cobro del autónomo, factura de un cliente, ingreso de una formación).\n- Pagos previstos: lo que sabes que pagarás (cuota de autónomo, gestoría, hosting, hipoteca, proveedor).\nLa clave: aún no ha entrado ni salido, pero quieres verlo venir.'
       }}
     >
-      {loading && <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#5A4A30' }}>Cargando...</div>}
+      {loading && <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>Cargando...</div>}
       {!loading && previsiones.length === 0 && !adding && (
-        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#5A4A30', padding: '8px 4px' }}>Sin previsiones vigentes.</div>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', padding: '8px 4px' }}>Sin previsiones vigentes.</div>
       )}
       {previsiones.map((p) => (
         <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', border: '1px solid rgba(200,168,64,0.08)', gap: 12, flexWrap: 'wrap' }}>
@@ -599,8 +599,8 @@ function PrevisionesBlock({
               {p.tipo === 'ingreso' ? 'INGRESO' : 'GASTO'}
             </span>
             <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-md)', color: '#E8DCC8' }}>{p.concepto}</span>
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>{formatDateEs(p.fecha_estimada)}</span>
-            {p.cuenta_nombre && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>· {p.cuenta_nombre}</span>}
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>{formatDateEs(p.fecha_estimada)}</span>
+            {p.cuenta_nombre && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>· {p.cuenta_nombre}</span>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)', color: '#E8DCC8' }}>{formatSaldo(p.importe)} {p.moneda}</span>
@@ -706,15 +706,15 @@ function ReservasBlock({
         body: 'Dinero que YA tienes en una cuenta, pero que está apartado para algo y no consideras libre.\nEjemplos: 600€ para impuestos, 300€ para devolver a alguien, 1.000€ de colchón, dinero apartado para una factura concreta.\nLa clave: el dinero ya existe, pero está comprometido. (Distinto de una previsión: la previsión es dinero que esperas; la reserva es dinero que ya tienes pero no puedes gastar alegremente.)'
       }}
     >
-      {loading && <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#5A4A30' }}>Cargando...</div>}
+      {loading && <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>Cargando...</div>}
       {!loading && reservas.length === 0 && !adding && (
-        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#5A4A30', padding: '8px 4px' }}>Sin reservas activas.</div>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', padding: '8px 4px' }}>Sin reservas activas.</div>
       )}
       {reservas.map((r) => (
         <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', border: '1px solid rgba(200,168,64,0.08)', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-md)', color: '#E8DCC8' }}>{r.concepto}</span>
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>· {r.cuenta_nombre}</span>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>· {r.cuenta_nombre}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)', color: '#E8DCC8' }}>{formatSaldo(r.importe)} {r.moneda}</span>
@@ -821,9 +821,9 @@ function DeudasBlock({
         body: 'Obligaciones o derechos de cobro que quieres controlar como deuda viva.\n- Me deben: alguien te debe dinero (una factura ya vencida).\n- Debo: tú debes saldar algo (a una persona, a un proveedor).\nLa clave: la deuda tiene peso de obligación/seguimiento. Una previsión es algo esperado; una deuda es algo que ya consideras pendiente de saldar.\nEjemplo: "me pagará la factura el día 5" es previsión; "me debe una factura ya vencida" es deuda.'
       }}
     >
-      {loading && <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#5A4A30' }}>Cargando...</div>}
+      {loading && <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>Cargando...</div>}
       {!loading && deudas.length === 0 && !adding && (
-        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#5A4A30', padding: '8px 4px' }}>Sin deudas pendientes.</div>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', padding: '8px 4px' }}>Sin deudas pendientes.</div>
       )}
       {deudas.map((d) => (
         <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', border: '1px solid rgba(200,168,64,0.08)', gap: 12, flexWrap: 'wrap' }}>
@@ -832,7 +832,7 @@ function DeudasBlock({
               {d.direccion === 'debo' ? 'DEBO' : 'ME DEBEN'}
             </span>
             <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-md)', color: '#E8DCC8' }}>{d.contraparte}</span>
-            {d.fecha_vencimiento && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>vence {formatDateEs(d.fecha_vencimiento)}</span>}
+            {d.fecha_vencimiento && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>vence {formatDateEs(d.fecha_vencimiento)}</span>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)', color: '#E8DCC8' }}>{formatSaldo(d.importe)} {d.moneda}</span>
@@ -895,7 +895,7 @@ function NotasEstadoBlock({
           rows={3}
           style={{ ...inputStyle, width: '100%', resize: 'vertical', fontFamily: 'JetBrains Mono, monospace' }}
         />
-        {savingNotas && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>Guardando notas...</span>}
+        {savingNotas && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>Guardando notas...</span>}
         {notasError && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#f87171' }}>{notasError}</span>}
 
         <div style={{ display: 'flex', gap: 0, marginTop: 4 }}>
@@ -908,7 +908,7 @@ function NotasEstadoBlock({
                 fontSize: 'var(--text-sm)',
                 padding: '6px 16px',
                 cursor: 'pointer',
-                color: estado === e ? '#C8A840' : '#5A4A30',
+                color: estado === e ? '#C8A840' : 'var(--color-text-muted)',
                 background: estado === e ? 'rgba(200,168,64,0.32)' : 'transparent',
                 border: estado === e ? '1px solid #C8A840' : '1px solid rgba(200,168,64,0.12)',
                 borderRadius: i === 0 ? '3px 0 0 3px' : i === ESTADOS_REVISION.length - 1 ? '0 3px 3px 0' : 0,
@@ -930,10 +930,10 @@ function ResumenComparacion({ compareData }: { compareData: CompareResponse | nu
 
   return (
     <section>
-      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#5A4A30', letterSpacing: '0.12em', marginBottom: 4 }}>
+      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)', letterSpacing: '0.12em', marginBottom: 4 }}>
         RESUMEN — INFORMATIVO
       </div>
-      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30', marginBottom: 12 }}>
+      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 12 }}>
         Cada ámbito es independiente. Estos totales NUNCA se suman entre sí.
         {compareData.sin_comparacion_previa && ' Sin comparación previa disponible para la semana anterior.'}
       </div>
@@ -944,7 +944,7 @@ function ResumenComparacion({ compareData }: { compareData: CompareResponse | nu
             <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2lg)', color: '#C8A840' }}>
               {a.total_actual !== null ? formatSaldo(a.total_actual) : '—'}
             </span>
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
               Semana anterior: {a.total_anterior !== null ? formatSaldo(a.total_anterior) : '—'}
             </span>
             {a.delta_total !== null && (
@@ -984,7 +984,7 @@ function InfoButton({ title, body }: { title: string; body: string }) {
           borderRadius: '50%',
           border: `1px solid ${open ? '#C8A840' : 'rgba(200,168,64,0.3)'}`,
           background: open ? 'rgba(200,168,64,0.32)' : 'transparent',
-          color: open ? '#C8A840' : '#7A6A50',
+          color: open ? '#C8A840' : 'var(--color-text-muted)',
           fontFamily: 'JetBrains Mono, monospace',
           fontSize: 'var(--text-2xs)',
           lineHeight: '13px',
@@ -1025,7 +1025,7 @@ function InfoButton({ title, body }: { title: string; body: string }) {
             <button
               onClick={() => setOpen(false)}
               aria-label="Cerrar"
-              style={{ background: 'transparent', border: 'none', color: '#5A4A30', cursor: 'pointer', fontSize: 'var(--text-md)', padding: 0, lineHeight: 1, flexShrink: 0 }}
+              style={{ background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: 'var(--text-md)', padding: 0, lineHeight: 1, flexShrink: 0 }}
             >
               ✕
             </button>
@@ -1056,7 +1056,7 @@ function Section({
     <section style={{ background: '#13100A', border: `1px solid ${hexToRgba(color, 0.2)}` }}>
       <div style={{ padding: '8px 12px', borderBottom: `1px solid ${hexToRgba(color, 0.1)}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#5A4A30', letterSpacing: '0.12em' }}>{title}</span>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)', letterSpacing: '0.12em' }}>{title}</span>
           {info && <InfoButton title={info.title} body={info.body} />}
         </div>
         {onAdd && (

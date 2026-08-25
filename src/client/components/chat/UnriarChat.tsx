@@ -217,7 +217,7 @@ export function UnriarChat() {
 
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {sessions.length === 0 ? (
-            <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>Sin conversaciones</div>
+            <div style={{ padding: 12, color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>Sin conversaciones</div>
           ) : sessions.map((s) => (
             <div
               key={s.session_id}
@@ -227,7 +227,7 @@ export function UnriarChat() {
               onMouseLeave={(e) => { if (activeId !== s.session_id) (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
             >
               <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-base)', color: '#E8DCC8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</div>
-              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30', marginTop: 2 }}>{fmtDate(s.updated_at)}</div>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 2 }}>{fmtDate(s.updated_at)}</div>
             </div>
           ))}
         </div>
@@ -236,7 +236,7 @@ export function UnriarChat() {
       {/* Right panel */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {!activeId ? (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)' }}>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)' }}>
             Selecciona o crea una conversación
           </div>
         ) : (
@@ -246,7 +246,7 @@ export function UnriarChat() {
               <button
                 className="conv-mobile-back"
                 onClick={() => setShowList(true)}
-                style={{ background: 'transparent', border: 'none', color: '#5A4A30', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-lg)', padding: '0 4px' }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-lg)', padding: '0 4px' }}
               >
                 ←
               </button>
@@ -259,13 +259,13 @@ export function UnriarChat() {
             {/* Messages */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
               {messages.length === 0 && (
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', minHeight: 100 }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', minHeight: 100 }}>
                   Unriar en espera
                 </div>
               )}
               {messages.map((msg, i) => (
                 <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                  <div style={{ maxWidth: '80%', padding: '8px 12px', background: msg.role === 'user' ? `${ACCENT}18` : '#13100A', border: `1px solid ${msg.role === 'user' ? ACCENT + '40' : 'rgba(200,168,64,0.12)'}`, fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-md)', color: msg.pending ? '#5A4A30' : '#E8DCC8', lineHeight: 1.5, wordBreak: 'break-word', fontStyle: msg.pending ? 'italic' : 'normal' }}>
+                  <div style={{ maxWidth: '80%', padding: '8px 12px', background: msg.role === 'user' ? `${ACCENT}18` : '#13100A', border: `1px solid ${msg.role === 'user' ? ACCENT + '40' : 'rgba(200,168,64,0.12)'}`, fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-md)', color: msg.pending ? 'var(--color-text-muted)' : '#E8DCC8', lineHeight: 1.5, wordBreak: 'break-word', fontStyle: msg.pending ? 'italic' : 'normal' }}>
                     {msg.pending ? (
                       <span>{msg.content}</span>
                     ) : msg.role === 'user' ? (
@@ -297,12 +297,12 @@ export function UnriarChat() {
                 onBlur={(e) => (e.currentTarget.style.borderColor = `${ACCENT}30`)}
               />
               <button onMouseDown={startRecording} onMouseUp={stopRecording} onMouseLeave={stopRecording}
-                style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: recording ? `${ACCENT}25` : 'transparent', border: `1px solid ${ACCENT}30`, color: recording ? ACCENT : '#5A4A30', cursor: 'pointer', fontSize: 14, flexShrink: 0 }}
+                style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: recording ? `${ACCENT}25` : 'transparent', border: `1px solid ${ACCENT}30`, color: recording ? ACCENT : 'var(--color-text-muted)', cursor: 'pointer', fontSize: 14, flexShrink: 0 }}
                 title="Mantener para grabar">
                 🎙
               </button>
               <button onClick={sendMessage} disabled={!input.trim() || streaming}
-                style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: input.trim() && !streaming ? `${ACCENT}20` : 'transparent', border: `1px solid ${input.trim() && !streaming ? ACCENT + '50' : ACCENT + '20'}`, color: input.trim() && !streaming ? ACCENT : '#5A4A30', cursor: input.trim() && !streaming ? 'pointer' : 'not-allowed', fontSize: 14, flexShrink: 0 }}
+                style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: input.trim() && !streaming ? `${ACCENT}20` : 'transparent', border: `1px solid ${input.trim() && !streaming ? ACCENT + '50' : ACCENT + '20'}`, color: input.trim() && !streaming ? ACCENT : 'var(--color-text-muted)', cursor: input.trim() && !streaming ? 'pointer' : 'not-allowed', fontSize: 14, flexShrink: 0 }}
                 title="Enviar (Enter)">
                 ▶
               </button>

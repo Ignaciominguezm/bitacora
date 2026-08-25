@@ -30,7 +30,7 @@ export function FinanzasPage() {
           <h1 style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-xl)', color: '#C8A840', letterSpacing: '0.1em', margin: 0 }}>
             FINANZAS
           </h1>
-          <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#5A4A30', margin: '4px 0 0' }}>
+          <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', margin: '4px 0 0' }}>
             Cuentas y revisión semanal por ámbito
           </p>
         </div>
@@ -46,7 +46,7 @@ export function FinanzasPage() {
                 letterSpacing: '0.06em',
                 padding: '6px 16px',
                 cursor: 'pointer',
-                color: view === t.id ? '#C8A840' : '#5A4A30',
+                color: view === t.id ? '#C8A840' : 'var(--color-text-muted)',
                 background: view === t.id ? 'rgba(200,168,64,0.32)' : 'transparent',
                 border: view === t.id ? '1px solid #C8A840' : '1px solid rgba(200,168,64,0.15)',
                 borderRadius: i === 0 ? '3px 0 0 3px' : i === TABS.length - 1 ? '0 3px 3px 0' : 0,

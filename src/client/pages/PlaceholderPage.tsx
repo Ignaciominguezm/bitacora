@@ -13,7 +13,7 @@ export function PlaceholderPage({ title, icon }: Props) {
         alignItems: 'center',
         justifyContent: 'center',
         gap: 16,
-        color: '#5A4A30'
+        color: 'var(--color-text-muted)'
       }}
     >
       <span style={{ fontSize: 48 }}>{icon}</span>

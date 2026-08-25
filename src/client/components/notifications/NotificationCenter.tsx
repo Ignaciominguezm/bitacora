@@ -29,7 +29,7 @@ const TIPO_COLOR: Record<string, string> = {
 }
 
 function tipoColor(tipo: string): string {
-  return TIPO_COLOR[tipo] ?? '#5A4A30'
+  return TIPO_COLOR[tipo] ?? 'var(--color-text-muted)'
 }
 
 function relativeTime(iso: string): string {
@@ -219,7 +219,7 @@ export function NotificationCenter({ onNavigate }: Props) {
             borderRadius: 4,
             cursor: 'pointer',
             fontSize: 14,
-            color: quickOpen ? '#C8A840' : '#5A4A30',
+            color: quickOpen ? '#C8A840' : 'var(--color-text-muted)',
             transition: 'all 0.15s'
           }}
         >
@@ -285,7 +285,7 @@ export function NotificationCenter({ onNavigate }: Props) {
               zIndex: 300
             }}
           >
-            <div style={{ padding: '8px 12px', borderBottom: '1px solid rgba(200,168,64,0.1)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#5A4A30', letterSpacing: '0.1em' }}>
+            <div style={{ padding: '8px 12px', borderBottom: '1px solid rgba(200,168,64,0.1)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)', letterSpacing: '0.1em' }}>
               NOTIFICACIONES
             </div>
 
@@ -334,12 +334,12 @@ export function NotificationCenter({ onNavigate }: Props) {
                 cursor: onNavigate ? 'pointer' : 'default',
                 fontFamily: 'JetBrains Mono, monospace',
                 fontSize: 'var(--text-xs)',
-                color: '#8B6914',
+                color: 'var(--color-accent-dark)',
                 letterSpacing: '0.04em',
                 width: '100%'
               }}
               onMouseEnter={(e) => { if (onNavigate) e.currentTarget.style.color = '#C8A840' }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = '#8B6914' }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-accent-dark)' }}
             >
               <span>Más ajustes</span>
               <span>→</span>
@@ -393,7 +393,7 @@ export function NotificationCenter({ onNavigate }: Props) {
                 textAlign: 'center',
                 fontFamily: 'JetBrains Mono, monospace',
                 fontSize: 'var(--text-xs)',
-                color: '#5A4A30',
+                color: 'var(--color-text-muted)',
                 padding: '4px 0'
               }}
             >
@@ -449,7 +449,7 @@ export function NotificationCenter({ onNavigate }: Props) {
                     style={{
                       fontFamily: 'JetBrains Mono, monospace',
                       fontSize: 'var(--text-2xs)',
-                      color: '#8B6914'
+                      color: 'var(--color-accent-dark)'
                     }}
                   >
                     {relativeTime(n.timestamp)}

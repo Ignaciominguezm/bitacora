@@ -38,7 +38,7 @@ export function Sidebar({ currentPage, onNavigate, onLogout }: Props) {
     justifyContent: 'center',
     background: currentPage === id ? 'rgba(200,168,64,0.32)' : 'transparent',
     border: currentPage === id ? '1px solid #C8A840' : '1px solid transparent',
-    color: currentPage === id ? '#C8A840' : '#5A4A30',
+    color: currentPage === id ? '#C8A840' : 'var(--color-text-muted)',
     fontSize: 18,
     cursor: 'pointer',
     transition: 'all 0.15s',
@@ -138,7 +138,7 @@ export function Sidebar({ currentPage, onNavigate, onLogout }: Props) {
             setTooltip('logout')
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.color = '#5A4A30'
+            e.currentTarget.style.color = 'var(--color-text-muted)'
             setTooltip(null)
           }}
           style={{
@@ -149,7 +149,7 @@ export function Sidebar({ currentPage, onNavigate, onLogout }: Props) {
             justifyContent: 'center',
             background: 'transparent',
             border: '1px solid transparent',
-            color: '#5A4A30',
+            color: 'var(--color-text-muted)',
             fontSize: 18,
             cursor: 'pointer',
             transition: 'all 0.15s'

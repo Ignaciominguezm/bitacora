@@ -44,18 +44,18 @@ export function WhatsAppWidget() {
         <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-sm)', color: '#A09070', letterSpacing: '0.08em' }}>
           WHATSAPP — UnrIA
         </span>
-        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
           {convs.length} recientes
         </span>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
         {loading ? (
-          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
+          <div style={{ padding: 12, color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
             Cargando conversaciones...
           </div>
         ) : convs.length === 0 ? (
-          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
+          <div style={{ padding: 12, color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
             Sin conversaciones recientes
           </div>
         ) : (
@@ -82,7 +82,7 @@ export function WhatsAppWidget() {
                   style={{
                     fontFamily: 'JetBrains Mono, monospace',
                     fontSize: 'var(--text-2xs)',
-                    color: conv.last_type === 'ai' ? '#C8A840' : '#5A4A30',
+                    color: conv.last_type === 'ai' ? '#C8A840' : 'var(--color-text-muted)',
                     letterSpacing: '0.06em'
                   }}
                 >

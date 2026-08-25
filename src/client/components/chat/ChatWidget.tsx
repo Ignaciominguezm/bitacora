@@ -366,7 +366,7 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
           style={{
             background: 'transparent',
             border: 'none',
-            color: '#5A4A30',
+            color: 'var(--color-text-muted)',
             fontFamily: 'JetBrains Mono, monospace',
             fontSize: 'var(--text-xs)',
             cursor: 'pointer',
@@ -374,7 +374,7 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
             letterSpacing: '0.05em'
           }}
           onMouseEnter={(e) => (e.currentTarget.style.color = '#A09070')}
-          onMouseLeave={(e) => (e.currentTarget.style.color = '#5A4A30')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
           title="Nueva conversación"
         >
           nuevo ×
@@ -390,7 +390,7 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#5A4A30',
+              color: 'var(--color-text-muted)',
               fontFamily: 'JetBrains Mono, monospace',
               fontSize: 'var(--text-sm)'
             }}
@@ -415,7 +415,7 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
                 border: `1px solid ${msg.role === 'user' ? accentColor + '35' : 'rgba(200,168,64,0.1)'}`,
                 fontFamily: 'DM Sans, sans-serif',
                 fontSize: 'var(--text-md)',
-                color: msg.pending ? '#5A4A30' : '#E8DCC8',
+                color: msg.pending ? 'var(--color-text-muted)' : '#E8DCC8',
                 lineHeight: 1.5,
                 wordBreak: 'break-word',
                 fontStyle: msg.pending ? 'italic' : 'normal'
@@ -490,7 +490,7 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
             justifyContent: 'center',
             background: recording ? `${accentColor}25` : 'transparent',
             border: `1px solid ${accentColor}30`,
-            color: recording ? accentColor : '#5A4A30',
+            color: recording ? accentColor : 'var(--color-text-muted)',
             cursor: 'pointer',
             fontSize: 14,
             transition: 'all 0.15s',
@@ -513,7 +513,7 @@ export function ChatWidget({ agent, accentColor, label }: Props) {
             justifyContent: 'center',
             background: input.trim() && !streaming ? `${accentColor}20` : 'transparent',
             border: `1px solid ${input.trim() && !streaming ? accentColor + '50' : accentColor + '20'}`,
-            color: input.trim() && !streaming ? accentColor : '#5A4A30',
+            color: input.trim() && !streaming ? accentColor : 'var(--color-text-muted)',
             cursor: input.trim() && !streaming ? 'pointer' : 'not-allowed',
             fontSize: 14,
             transition: 'all 0.15s',

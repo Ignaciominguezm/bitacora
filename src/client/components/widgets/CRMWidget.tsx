@@ -99,17 +99,17 @@ export function CRMWidget() {
       {/* Results */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {searching && (
-          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
+          <div style={{ padding: 12, color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
             Buscando...
           </div>
         )}
         {!searching && results.length === 0 && query && (
-          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
+          <div style={{ padding: 12, color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
             Sin resultados
           </div>
         )}
         {!searching && results.length === 0 && !query && pendingCount === 0 && (
-          <div style={{ padding: 12, color: '#5A4A30', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
+          <div style={{ padding: 12, color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)' }}>
             Busca un contacto
           </div>
         )}
@@ -129,7 +129,7 @@ export function CRMWidget() {
               {contact.full_name}
             </div>
             {contact.company_name && (
-              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#5A4A30' }}>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
                 {contact.company_name}
               </div>
             )}

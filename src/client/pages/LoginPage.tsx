@@ -86,7 +86,7 @@ export function LoginPage({ onLogin }: Props) {
           style={{
             fontFamily: 'JetBrains Mono, monospace',
             fontSize: 'var(--text-sm)',
-            color: '#5A4A30',
+            color: 'var(--color-text-muted)',
             margin: 0,
             letterSpacing: '0.15em',
             textTransform: 'uppercase'

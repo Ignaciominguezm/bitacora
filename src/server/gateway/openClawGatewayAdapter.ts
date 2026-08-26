@@ -1,5 +1,6 @@
-import type { AgentContext, AgentGateway, AgentMessage, AgentSessionRef } from './types.js'
+import type { AgentContext, AgentGateway, AgentSessionRef } from './types.js'
 import { buildPrompt } from './prompt.js'
+import { buildCabinaContextPack } from './contextPack.js'
 
 const OPENCLAW_GATEWAY_URL = process.env.OPENCLAW_GATEWAY_URL || 'https://imm-guarida.tailf37d92.ts.net'
 const OPENCLAW_GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN
@@ -51,37 +52,6 @@ function extractText(result: ResponsesResult): string {
   throw new Error('Respuesta de OpenClaw (gateway) sin output[].content[].text reconocible')
 }
 
-function formatHistoryLine(m: AgentMessage): string {
-  return `${m.role === 'user' ? 'Usuario' : 'Unria'}: ${m.content}`
-}
-
-// Resumen (si existe) + últimos N mensajes de la conversación, para que la
-// continuidad de cada hilo de Cabina viva aquí y no dependa de nada que
-// ofrezca /v1/responses. Si no hay resumen y la conversación ya pasó del
-// límite, lo dice explícitamente — así una respuesta que no recuerda algo
-// dicho hace 15 mensajes se lee como "estado intermedio esperado", no como
-// un fallo silencioso.
-function buildContextBlock(session: AgentSessionRef, limit: number): string {
-  const parts: string[] = []
-
-  if (session.summary) {
-    parts.push('[Resumen de esta conversación hasta ahora]', session.summary)
-  }
-
-  const recent = session.history.slice(-limit)
-  const truncated = session.history.length > recent.length
-
-  if (recent.length > 0) {
-    parts.push('[Historial reciente]')
-    if (truncated && !session.summary) {
-      parts.push('[...mensajes anteriores no incluidos; resumen aún no disponible...]')
-    }
-    parts.push(...recent.map(formatHistoryLine))
-  }
-
-  return parts.join('\n')
-}
-
 // Habla con el gateway HTTP de OpenClaw en la sobremesa, vía Tailscale.
 // Formato Responses de OpenAI: POST /v1/responses, body {model, input}. Sin
 // ningún campo de sesión — confirmado que ninguno aísla nada en este
@@ -93,9 +63,8 @@ export class OpenClawGatewayAdapter implements AgentGateway {
       throw new Error('OPENCLAW_GATEWAY_TOKEN no configurado')
     }
 
-    const contextBlock = buildContextBlock(session, HISTORY_MESSAGE_LIMIT)
-    const enrichedMessage = contextBlock ? `${contextBlock}\n\n${message}` : message
-    const prompt = buildPrompt(enrichedMessage, context, session)
+    const contextPack = buildCabinaContextPack(message, context, session, HISTORY_MESSAGE_LIMIT)
+    const prompt = buildPrompt(contextPack, context, session, { structuredContextPack: true })
     const startedAt = Date.now()
 
     let res: Response

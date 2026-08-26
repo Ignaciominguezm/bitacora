@@ -29,7 +29,7 @@ export function Layout({ onLogout }: Props) {
     <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden' }}>
       <Sidebar currentPage={page} onNavigate={setPage} onLogout={handleLogout} />
       <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {page === 'dashboard' && <DashboardPage />}
+        {page === 'dashboard' && <DashboardPage onOpenSistema={() => setPage('system')} />}
         {page === 'conversations' && <ConversacionesPage />}
         {page === 'crm' && <CRMPage />}
         {page === 'tasks' && <TareasPage />}

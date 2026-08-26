@@ -272,6 +272,12 @@ finanzasRoutes.get('/revision/comparar', async (c) => {
   const semanaAnterior = addDays(semana, -7)
 
   try {
+    // Arrastre: el saldo de una cuenta en una semana dada es el del último
+    // snapshot conocido EN O ANTES de esa semana (LATERAL + semana <= $N),
+    // no un match exacto. Una cuenta que no cambió esta semana no debe
+    // "desaparecer" del total ni contarse como 0 — sigue en el último
+    // valor que se le conoce. Se aplica igual a la semana actual y a la
+    // anterior con la que se compara.
     const result = await finanzasDb.query(
       `SELECT
          c.id AS cuenta_id, c.nombre AS cuenta_nombre, c.moneda,
@@ -279,8 +285,16 @@ finanzasRoutes.get('/revision/comparar', async (c) => {
          sa.saldo AS saldo_actual, sp.saldo AS saldo_anterior
        FROM cuentas_financieras c
        JOIN ambitos a ON a.id = c.ambito_id
-       LEFT JOIN saldos_semanales sa ON sa.cuenta_id = c.id AND sa.semana = $1
-       LEFT JOIN saldos_semanales sp ON sp.cuenta_id = c.id AND sp.semana = $2
+       LEFT JOIN LATERAL (
+         SELECT saldo FROM saldos_semanales
+         WHERE cuenta_id = c.id AND semana <= $1
+         ORDER BY semana DESC LIMIT 1
+       ) sa ON true
+       LEFT JOIN LATERAL (
+         SELECT saldo FROM saldos_semanales
+         WHERE cuenta_id = c.id AND semana <= $2
+         ORDER BY semana DESC LIMIT 1
+       ) sp ON true
        WHERE c.activa = true
        ORDER BY a.orden, c.nombre`,
       [semana, semanaAnterior]
@@ -981,11 +995,24 @@ finanzasRoutes.get('/dashboard', async (c) => {
   try {
     const [ambitosResult, cuentasResult, reservasResult, previstosResult, deudasResult, pendientesResult] = await Promise.all([
       finanzasDb.query('SELECT id, nombre, tipo, orden, color FROM ambitos ORDER BY orden'),
+      // Arrastre: saldo_total es "a fecha de la semana pedida", no siempre
+      // "el más reciente que exista". v_cuentas_saldo_actual (Pieza A, sin
+      // tocar) siempre da el último de todos los tiempos — coincide con
+      // esto solo cuando `semana` es la semana en curso. Aquí se ancla
+      // explícitamente a `semana` con la misma regla de arrastre que
+      // /revision/comparar: último snapshot <= semana, nunca 0 por falta
+      // de snapshot exacto.
       finanzasDb.query(
-        `SELECT v.id, v.ambito_id, v.nombre, v.tipo, v.entidad, v.moneda, v.saldo_actual
-         FROM v_cuentas_saldo_actual v
-         WHERE v.activa = true
-         ORDER BY v.nombre`
+        `SELECT c.id, c.ambito_id, c.nombre, c.tipo, c.entidad, c.moneda, s.saldo AS saldo_actual
+         FROM cuentas_financieras c
+         LEFT JOIN LATERAL (
+           SELECT saldo FROM saldos_semanales
+           WHERE cuenta_id = c.id AND semana <= $1
+           ORDER BY semana DESC LIMIT 1
+         ) s ON true
+         WHERE c.activa = true
+         ORDER BY c.nombre`,
+        [semana]
       ),
       finanzasDb.query(
         `SELECT c.ambito_id, COALESCE(SUM(r.importe), 0) AS total

@@ -272,6 +272,12 @@ finanzasRoutes.get('/revision/comparar', async (c) => {
   const semanaAnterior = addDays(semana, -7)
 
   try {
+    // Arrastre: el saldo de una cuenta en una semana dada es el del último
+    // snapshot conocido EN O ANTES de esa semana (LATERAL + semana <= $N),
+    // no un match exacto. Una cuenta que no cambió esta semana no debe
+    // "desaparecer" del total ni contarse como 0 — sigue en el último
+    // valor que se le conoce. Se aplica igual a la semana actual y a la
+    // anterior con la que se compara.
     const result = await finanzasDb.query(
       `SELECT
          c.id AS cuenta_id, c.nombre AS cuenta_nombre, c.moneda,
@@ -279,8 +285,16 @@ finanzasRoutes.get('/revision/comparar', async (c) => {
          sa.saldo AS saldo_actual, sp.saldo AS saldo_anterior
        FROM cuentas_financieras c
        JOIN ambitos a ON a.id = c.ambito_id
-       LEFT JOIN saldos_semanales sa ON sa.cuenta_id = c.id AND sa.semana = $1
-       LEFT JOIN saldos_semanales sp ON sp.cuenta_id = c.id AND sp.semana = $2
+       LEFT JOIN LATERAL (
+         SELECT saldo FROM saldos_semanales
+         WHERE cuenta_id = c.id AND semana <= $1
+         ORDER BY semana DESC LIMIT 1
+       ) sa ON true
+       LEFT JOIN LATERAL (
+         SELECT saldo FROM saldos_semanales
+         WHERE cuenta_id = c.id AND semana <= $2
+         ORDER BY semana DESC LIMIT 1
+       ) sp ON true
        WHERE c.activa = true
        ORDER BY a.orden, c.nombre`,
       [semana, semanaAnterior]
@@ -938,5 +952,203 @@ finanzasRoutes.patch('/deudas/:id', async (c) => {
     return c.json({ deuda: result.rows[0] })
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'update error' }, 500)
+  }
+})
+
+// ─── dashboard semanal (#713) ────────────────────────────────────────────
+
+// Umbral provisional de margen de seguridad (30 días) por ámbito. Todavía
+// NO hay configuración por UI (tarea futura, sin tabla nueva en #713) —
+// este es el ÚNICO sitio del código donde se define. Para cambiarlo, edita
+// este objeto. IDs de ambitos.id — ver 002_seed_ambitos.sql.
+const COLCHON_MINIMO_PROVISIONAL: Record<number, number> = {
+  1: 3000, // IMM CORE SYSTEM SL
+  2: 1000, // Ignacio Mínguez Montes
+  3: 500   // Familia / Hogar
+}
+const COLCHON_MINIMO_DEFAULT = 500
+function colchonMinimo(ambitoId: number): number {
+  return COLCHON_MINIMO_PROVISIONAL[ambitoId] ?? COLCHON_MINIMO_DEFAULT
+}
+
+function semaforoDe(margenSeguridad: number, colchon: number): 'rojo' | 'ambar' | 'verde' {
+  if (margenSeguridad < 0) return 'rojo'
+  if (margenSeguridad < colchon) return 'ambar'
+  return 'verde'
+}
+
+// GET /api/finanzas/dashboard?semana=YYYY-MM-DD — foto semanal por ámbito.
+// `semana` (normalizada al lunes) solo se usa para "pendientes de revisar"
+// (qué cuenta no tiene saldo registrado ESA semana). Las ventanas de
+// 30/7 días de pagos y cobros previstos se calculan desde HOY real,
+// independientemente de qué semana esté mirando el usuario.
+finanzasRoutes.get('/dashboard', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const raw = c.req.query('semana')
+  const semana = raw !== undefined ? normalizeToMonday(raw) : todayMonday()
+  if (!semana) return c.json({ error: 'semana inválida (formato YYYY-MM-DD)' }, 400)
+
+  const hoy = new Date().toISOString().slice(0, 10)
+  const hoyMas7 = addDays(hoy, 7)
+  const hoyMas30 = addDays(hoy, 30)
+
+  try {
+    const [ambitosResult, cuentasResult, reservasResult, previstosResult, deudasResult, pendientesResult] = await Promise.all([
+      finanzasDb.query('SELECT id, nombre, tipo, orden, color FROM ambitos ORDER BY orden'),
+      // Arrastre: saldo_total es "a fecha de la semana pedida", no siempre
+      // "el más reciente que exista". v_cuentas_saldo_actual (Pieza A, sin
+      // tocar) siempre da el último de todos los tiempos — coincide con
+      // esto solo cuando `semana` es la semana en curso. Aquí se ancla
+      // explícitamente a `semana` con la misma regla de arrastre que
+      // /revision/comparar: último snapshot <= semana, nunca 0 por falta
+      // de snapshot exacto.
+      finanzasDb.query(
+        `SELECT c.id, c.ambito_id, c.nombre, c.tipo, c.entidad, c.moneda, s.saldo AS saldo_actual
+         FROM cuentas_financieras c
+         LEFT JOIN LATERAL (
+           SELECT saldo FROM saldos_semanales
+           WHERE cuenta_id = c.id AND semana <= $1
+           ORDER BY semana DESC LIMIT 1
+         ) s ON true
+         WHERE c.activa = true
+         ORDER BY c.nombre`,
+        [semana]
+      ),
+      finanzasDb.query(
+        `SELECT c.ambito_id, COALESCE(SUM(r.importe), 0) AS total
+         FROM reservas r
+         JOIN cuentas_financieras c ON c.id = r.cuenta_id
+         WHERE r.estado = 'activa' AND c.activa = true
+         GROUP BY c.ambito_id`
+      ),
+      finanzasDb.query(
+        `SELECT m.id, m.ambito_id, m.tipo, m.concepto, m.importe,
+                TO_CHAR(m.fecha_estimada, 'YYYY-MM-DD') AS fecha_estimada,
+                c.nombre AS cuenta_nombre
+         FROM movimientos_previstos m
+         LEFT JOIN cuentas_financieras c ON c.id = m.cuenta_id
+         WHERE m.estado = 'previsto' AND m.fecha_estimada BETWEEN $1 AND $2
+         ORDER BY m.fecha_estimada, m.id`,
+        [hoy, hoyMas30]
+      ),
+      finanzasDb.query(
+        `SELECT ambito_id, direccion, COUNT(*) AS n, COALESCE(SUM(importe), 0) AS total
+         FROM deudas
+         WHERE estado = 'pendiente'
+         GROUP BY ambito_id, direccion`
+      ),
+      finanzasDb.query(
+        `SELECT c.id AS cuenta_id, c.nombre, c.ambito_id
+         FROM cuentas_financieras c
+         LEFT JOIN saldos_semanales s ON s.cuenta_id = c.id AND s.semana = $1
+         WHERE c.activa = true AND s.id IS NULL
+         ORDER BY c.ambito_id, c.nombre`,
+        [semana]
+      )
+    ])
+
+    interface VencItem {
+      id: number
+      tipo: 'ingreso' | 'gasto'
+      concepto: string
+      importe: number
+      fecha_estimada: string
+      cuenta_nombre: string | null
+    }
+
+    const ambitos = ambitosResult.rows.map((amb) => {
+      const cuentasAmbito = cuentasResult.rows.filter((cta) => cta.ambito_id === amb.id)
+      const saldo_total = cuentasAmbito.reduce((sum, cta) => sum + (cta.saldo_actual !== null ? Number(cta.saldo_actual) : 0), 0)
+
+      const reservaRow = reservasResult.rows.find((r) => r.ambito_id === amb.id)
+      const reservas_activas = reservaRow ? Number(reservaRow.total) : 0
+
+      const disponible_tras_reservas = saldo_total - reservas_activas
+
+      const previstosAmbito = previstosResult.rows.filter((m) => m.ambito_id === amb.id)
+      const pagos30 = previstosAmbito.filter((m) => m.tipo === 'gasto')
+      const cobros30 = previstosAmbito.filter((m) => m.tipo === 'ingreso')
+      const pagos_proximos_30d = pagos30.reduce((sum, m) => sum + Number(m.importe), 0)
+      const cobros_esperados_30d = cobros30.reduce((sum, m) => sum + Number(m.importe), 0)
+
+      const margen_seguridad = disponible_tras_reservas - pagos_proximos_30d
+      const escenario_esperado = disponible_tras_reservas + cobros_esperados_30d - pagos_proximos_30d
+
+      const colchon_minimo = colchonMinimo(amb.id)
+      const semaforo = semaforoDe(margen_seguridad, colchon_minimo)
+
+      const toVencItem = (m: (typeof previstosAmbito)[number]): VencItem => ({
+        id: m.id,
+        tipo: m.tipo,
+        concepto: m.concepto,
+        importe: Number(m.importe),
+        fecha_estimada: m.fecha_estimada,
+        cuenta_nombre: m.cuenta_nombre
+      })
+      const pagos7 = pagos30.filter((m) => m.fecha_estimada <= hoyMas7).map(toVencItem)
+      const cobros7 = cobros30.filter((m) => m.fecha_estimada <= hoyMas7).map(toVencItem)
+      const total_pagos_7d = pagos7.reduce((sum, m) => sum + m.importe, 0)
+      const total_cobros_7d = cobros7.reduce((sum, m) => sum + m.importe, 0)
+
+      const deudaDebo = deudasResult.rows.find((d) => d.ambito_id === amb.id && d.direccion === 'debo')
+      const deudaMeDeben = deudasResult.rows.find((d) => d.ambito_id === amb.id && d.direccion === 'me_deben')
+
+      return {
+        id: amb.id,
+        nombre: amb.nombre,
+        color: amb.color,
+        orden: amb.orden,
+        cuentas: cuentasAmbito.map((cta) => ({
+          id: cta.id,
+          nombre: cta.nombre,
+          tipo: cta.tipo,
+          entidad: cta.entidad,
+          saldo_actual: cta.saldo_actual
+        })),
+        saldo_total,
+        reservas_activas,
+        disponible_tras_reservas,
+        pagos_proximos_30d,
+        cobros_esperados_30d,
+        margen_seguridad,
+        escenario_esperado,
+        colchon_minimo,
+        colchon_provisional: true,
+        semaforo,
+        vencimientos_7d: {
+          pagos: pagos7,
+          cobros: cobros7,
+          total_pagos_7d,
+          total_cobros_7d
+        },
+        riesgo_7_dias: total_pagos_7d > 0,
+        deudas: {
+          debo: { total: deudaDebo ? Number(deudaDebo.total) : 0, n: deudaDebo ? Number(deudaDebo.n) : 0 },
+          me_deben: { total: deudaMeDeben ? Number(deudaMeDeben.total) : 0, n: deudaMeDeben ? Number(deudaMeDeben.n) : 0 }
+        }
+      }
+    })
+
+    // Vencimientos de la semana, cruzando ámbitos pero etiquetados —
+    // nunca sumados entre sí.
+    const vencimientos_semana = ambitos.flatMap((amb) => [
+      ...amb.vencimientos_7d.pagos.map((v) => ({ ...v, ambito_id: amb.id, ambito_nombre: amb.nombre, ambito_color: amb.color })),
+      ...amb.vencimientos_7d.cobros.map((v) => ({ ...v, ambito_id: amb.id, ambito_nombre: amb.nombre, ambito_color: amb.color }))
+    ])
+
+    const pendientes_de_revisar = pendientesResult.rows.map((row) => {
+      const amb = ambitosResult.rows.find((a) => a.id === row.ambito_id)
+      return {
+        cuenta_id: row.cuenta_id,
+        nombre: row.nombre,
+        ambito_id: row.ambito_id,
+        ambito_nombre: amb?.nombre ?? '',
+        ambito_color: amb?.color ?? '#C8A840'
+      }
+    })
+
+    return c.json({ semana, hoy, ambitos, vencimientos_semana, pendientes_de_revisar })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'query error' }, 500)
   }
 })

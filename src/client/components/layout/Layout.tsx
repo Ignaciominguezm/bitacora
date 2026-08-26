@@ -5,13 +5,14 @@ import { TeamPage } from '../../pages/TeamPage'
 import { TareasPage } from '../../pages/TareasPage'
 import { SistemaPage } from '../../pages/SistemaPage'
 import { ConversacionesPage } from '../../pages/ConversacionesPage'
+import { CabinaUnriaPage } from '../../pages/CabinaUnriaPage'
 import { CRMPage } from '../../pages/CRMPage'
 import { TiempoPage } from '../../pages/TiempoPage'
 import { AjustesPage } from '../../pages/AjustesPage'
 import { FinanzasPage } from '../../pages/FinanzasPage'
 import { NotificationCenter } from '../notifications/NotificationCenter'
 
-type Page = 'dashboard' | 'conversations' | 'crm' | 'tasks' | 'team' | 'tiempo' | 'finanzas' | 'system' | 'ajustes'
+type Page = 'dashboard' | 'conversations' | 'cabina' | 'crm' | 'tasks' | 'team' | 'tiempo' | 'finanzas' | 'system' | 'ajustes'
 
 interface Props {
   onLogout: () => void
@@ -31,6 +32,7 @@ export function Layout({ onLogout }: Props) {
       <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {page === 'dashboard' && <DashboardPage onOpenSistema={() => setPage('system')} />}
         {page === 'conversations' && <ConversacionesPage />}
+        {page === 'cabina' && <CabinaUnriaPage />}
         {page === 'crm' && <CRMPage />}
         {page === 'tasks' && <TareasPage />}
         {page === 'team' && <TeamPage />}

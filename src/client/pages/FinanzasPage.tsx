@@ -59,7 +59,7 @@ export function FinanzasPage() {
         </div>
       </div>
 
-      {view === 'dashboard' && <FinanzasDashboard ambitos={ambitos} onNavigate={setView} />}
+      {view === 'dashboard' && <FinanzasDashboard onNavigate={setView} />}
       {view === 'cuentas' && <CuentasView ambitos={ambitos} />}
       {view === 'revision' && <RevisionSemanalView ambitos={ambitos} />}
     </div>

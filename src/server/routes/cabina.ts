@@ -3,6 +3,7 @@ import { streamSSE } from 'hono/streaming'
 import { bitacoraDb } from '../db/index.js'
 import { getGateway } from '../gateway/index.js'
 import type { Ambito, Modo } from '../gateway/index.js'
+import { maybeUpdateSummary } from '../gateway/summarizer.js'
 
 export const cabinaRoutes = new Hono()
 
@@ -217,6 +218,16 @@ cabinaRoutes.post('/session/:id/message', async (c) => {
         }
 
         console.log(`[cabina] session=${sessionId} turno completo en ${Date.now() - startedAt}ms`)
+
+        // El usuario ya tiene su respuesta (chunks + [DONE] ya escritos
+        // arriba) — esto no la retrasa. Se queda dentro del mismo
+        // processingSessions que ya bloqueaba un segundo turno concurrente,
+        // así que un envío mientras el resumen sigue en curso da 409 en vez
+        // de arriesgar dos actualizaciones de summary pisándose. Best-effort
+        // estricto: maybeUpdateSummary nunca lanza, se traga y loguea sola.
+        if (fullContent) {
+          await maybeUpdateSummary(db, sessionId, ambito, modo)
+        }
       } finally {
         processingSessions.delete(sessionId)
       }

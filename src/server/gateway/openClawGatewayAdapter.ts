@@ -10,12 +10,13 @@ const OPENCLAW_TIMEOUT_SECONDS = Number.parseInt(process.env.OPENCLAW_TIMEOUT_SE
 // contra el gateway — session/sessionKey/conversation/conversation_id dan
 // 400, metadata.session y previous_response_id se aceptan pero no aíslan
 // nada), así que la continuidad por hilo la aporta Cabina metiendo contexto
-// en el propio input, no la API. 10 mensajes (~5 intercambios) es una
-// fracción modesta frente a lo que ya cuesta la memoria propia de Unria
-// (700–12.800 input_tokens observados solo por eso en el sondeo, y
-// creciendo) — suficiente para mantener coherente el hilo reciente sin
-// competir con ese coste.
-const HISTORY_MESSAGE_LIMIT = Number.parseInt(process.env.OPENCLAW_HISTORY_MESSAGES || '10', 10)
+// en el propio input, no la API. 40 mensajes (~20 intercambios) es el
+// mínimo cómodo para trabajar en desarrollo sin notar el corte de la
+// ventana en cada turno; lo que quede fuera de la ventana ya no se pierde,
+// summarizer.ts lo incorpora al resumen incremental antes de que salga de
+// aquí. Exportado porque summarizer.ts necesita el mismo valor para saber
+// qué mensajes están "a punto de salir de la ventana".
+export const HISTORY_MESSAGE_LIMIT = Number.parseInt(process.env.OPENCLAW_HISTORY_MESSAGES || '40', 10)
 
 // Formato Responses de OpenAI — confirmado con curl real contra el gateway.
 interface ResponsesContentItem {

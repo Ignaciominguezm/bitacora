@@ -1,5 +1,6 @@
 import type { AgentContext, AgentMessage, AgentSessionRef } from './types.js'
 import { AMBITO_LABEL, MODO_LABEL } from './labels.js'
+import { buildGobiernoBlock } from './ambitoGobierno.js'
 
 // Nota anti-injection — texto literal, no reformatear. Aparece una única
 // vez, inmediatamente antes del contenido citado (nunca intercalada entre
@@ -82,10 +83,13 @@ function buildCurrentMessageBlock(message: string): string {
 }
 
 // Sustituye la concatenación plana anterior (bloque de contexto + mensaje
-// pegados con un salto de línea) por tres bloques delimitados y auditables.
+// pegados con un salto de línea) por bloques delimitados y auditables.
 // Solo lo usa OpenClawGatewayAdapter. El historial nunca debe leerse como
 // instrucción — de ahí la nota anti-injection fija justo antes de su
-// contenido, una única vez.
+// contenido, una única vez. GOBIERNO_CONTEXTO va primero, antes de
+// METADATA_CABINA: es la única sección accionable (ámbito activo, dominios
+// permitidos, regla de recuperación) frente al resto, que es solo
+// contexto/metadata.
 export function buildCabinaContextPack(
   message: string,
   context: AgentContext,
@@ -93,6 +97,8 @@ export function buildCabinaContextPack(
   historyLimit: number
 ): string {
   return [
+    buildGobiernoBlock(context),
+    '',
     buildMetadataBlock(context, session),
     '',
     buildQuotedHistoryBlock(session, historyLimit),

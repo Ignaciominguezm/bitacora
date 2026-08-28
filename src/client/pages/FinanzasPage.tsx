@@ -3,13 +3,17 @@ import { type Ambito } from './finanzas/shared'
 import { FinanzasDashboard } from './finanzas/FinanzasDashboard'
 import { CuentasView } from './finanzas/CuentasView'
 import { RevisionSemanalView } from './finanzas/RevisionSemanalView'
+import { CategoriasView } from './finanzas/CategoriasView'
+import { TercerosView } from './finanzas/TercerosView'
 
-type View = 'dashboard' | 'cuentas' | 'revision'
+type View = 'dashboard' | 'cuentas' | 'revision' | 'categorias' | 'terceros'
 
 const TABS: Array<{ id: View; label: string }> = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'cuentas', label: 'Cuentas' },
-  { id: 'revision', label: 'Revisión semanal' }
+  { id: 'revision', label: 'Revisión semanal' },
+  { id: 'categorias', label: 'Categorías' },
+  { id: 'terceros', label: 'Terceros' }
 ]
 
 export function FinanzasPage() {
@@ -62,6 +66,8 @@ export function FinanzasPage() {
       {view === 'dashboard' && <FinanzasDashboard onNavigate={setView} />}
       {view === 'cuentas' && <CuentasView ambitos={ambitos} />}
       {view === 'revision' && <RevisionSemanalView ambitos={ambitos} />}
+      {view === 'categorias' && <CategoriasView />}
+      {view === 'terceros' && <TercerosView ambitos={ambitos} />}
     </div>
   )
 }

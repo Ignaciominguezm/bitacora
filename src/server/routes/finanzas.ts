@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { finanzasDb } from '../db/index.js'
+import { finanzasDb, immReadonlyDb } from '../db/index.js'
 
 export const finanzasRoutes = new Hono()
 
@@ -32,6 +32,14 @@ const isDireccionDeuda = (v: unknown): v is (typeof DIRECCIONES_DEUDA)[number] =
 const ESTADOS_DEUDA = ['pendiente', 'pagada', 'cobrada', 'cancelada'] as const
 const isEstadoDeuda = (v: unknown): v is (typeof ESTADOS_DEUDA)[number] =>
   typeof v === 'string' && (ESTADOS_DEUDA as readonly string[]).includes(v)
+
+const TIPOS_CATEGORIA = ['gasto', 'ingreso', 'ambos'] as const
+const isTipoCategoria = (v: unknown): v is (typeof TIPOS_CATEGORIA)[number] =>
+  typeof v === 'string' && (TIPOS_CATEGORIA as readonly string[]).includes(v)
+
+const TIPOS_TERCERO = ['cliente', 'proveedor', 'ambos', 'otro'] as const
+const isTipoTercero = (v: unknown): v is (typeof TIPOS_TERCERO)[number] =>
+  typeof v === 'string' && (TIPOS_TERCERO as readonly string[]).includes(v)
 
 // La "semana" canónica es siempre el lunes ISO de esa semana. Nunca se
 // confía en la fecha que manda el cliente sin normalizar por aquí.
@@ -1148,6 +1156,416 @@ finanzasRoutes.get('/dashboard', async (c) => {
     })
 
     return c.json({ semana, hoy, ambitos, vencimientos_semana, pendientes_de_revisar })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'query error' }, 500)
+  }
+})
+
+// ─── categorías — jerárquicas, esquema ya en producción (#743) ──────────
+
+interface CategoriaRow {
+  id: number
+  parent_id: number | null
+  nombre: string
+  tipo: string
+  orden: number
+  activa: boolean
+}
+interface CategoriaNode extends CategoriaRow {
+  children: CategoriaNode[]
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && (err as { code?: string }).code === '23505'
+}
+
+// GET /api/finanzas/categorias?tipo=gasto|ingreso|ambos — árbol por parent_id.
+// tipo=gasto también incluye 'ambos' (aplica a los dos flujos); igual para
+// ingreso. El árbol se construye SOLO con las filas que pasan el filtro —
+// si algún día un padre 'ambos' tuviera hijas de un único tipo, una hija
+// cuyo padre queda fuera del filtro aparecería como raíz; no ocurre con los
+// datos sembrados (cada árbol es homogéneamente gasto o ingreso).
+finanzasRoutes.get('/categorias', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const tipo = c.req.query('tipo')
+  if (tipo !== undefined && !isTipoCategoria(tipo)) {
+    return c.json({ error: `tipo debe ser uno de: ${TIPOS_CATEGORIA.join(', ')}` }, 400)
+  }
+
+  const params: unknown[] = []
+  let where = ''
+  if (tipo === 'gasto' || tipo === 'ingreso') {
+    params.push(tipo, 'ambos')
+    where = `WHERE tipo IN ($1, $2)`
+  } else if (tipo === 'ambos') {
+    params.push('ambos')
+    where = `WHERE tipo = $1`
+  }
+
+  try {
+    const result = await finanzasDb.query<CategoriaRow>(
+      `SELECT id, parent_id, nombre, tipo, orden, activa
+       FROM categorias
+       ${where}
+       ORDER BY orden, nombre`,
+      params
+    )
+
+    const byId = new Map<number, CategoriaNode>()
+    for (const row of result.rows) byId.set(row.id, { ...row, children: [] })
+    const roots: CategoriaNode[] = []
+    for (const node of byId.values()) {
+      const parent = node.parent_id !== null ? byId.get(node.parent_id) : undefined
+      if (parent) parent.children.push(node)
+      else roots.push(node)
+    }
+
+    return c.json({ categorias: roots })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'query error' }, 500)
+  }
+})
+
+// POST /api/finanzas/categorias
+finanzasRoutes.post('/categorias', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Body inválido' }, 400)
+  const { nombre, tipo, parent_id } = body as Record<string, unknown>
+
+  if (typeof nombre !== 'string' || nombre.trim() === '') return c.json({ error: 'nombre es obligatorio' }, 400)
+  if (!isTipoCategoria(tipo)) return c.json({ error: `tipo debe ser uno de: ${TIPOS_CATEGORIA.join(', ')}` }, 400)
+  if (parent_id !== undefined && parent_id !== null && (typeof parent_id !== 'number' || !Number.isInteger(parent_id))) {
+    return c.json({ error: 'parent_id debe ser un entero o null' }, 400)
+  }
+  const parentId = (parent_id ?? null) as number | null
+
+  try {
+    if (parentId !== null) {
+      const parentResult = await finanzasDb.query('SELECT tipo FROM categorias WHERE id = $1', [parentId])
+      if (parentResult.rowCount === 0) return c.json({ error: 'parent_id no existe' }, 400)
+      const parentTipo = parentResult.rows[0].tipo as string
+      if (parentTipo !== 'ambos' && parentTipo !== tipo) {
+        return c.json(
+          { error: `El grupo padre es de tipo '${parentTipo}' — la subcategoría debe ser del mismo tipo (o el padre debe ser 'ambos')` },
+          400
+        )
+      }
+    }
+
+    const ordenResult = await finanzasDb.query(
+      `SELECT COALESCE(MAX(orden), -1) + 1 AS siguiente FROM categorias WHERE COALESCE(parent_id, 0) = COALESCE($1::int, 0)`,
+      [parentId]
+    )
+    const orden = ordenResult.rows[0].siguiente
+
+    const result = await finanzasDb.query<CategoriaRow>(
+      `INSERT INTO categorias (parent_id, nombre, tipo, codigo, orden, activa)
+       VALUES ($1, $2, $3, NULL, $4, true)
+       RETURNING id, parent_id, nombre, tipo, orden, activa`,
+      [parentId, nombre.trim(), tipo, orden]
+    )
+    return c.json({ categoria: { ...result.rows[0], children: [] } }, 201)
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      return c.json({ error: 'Ya existe una categoría hermana con ese nombre en ese grupo' }, 409)
+    }
+    return c.json({ error: err instanceof Error ? err.message : 'insert error' }, 500)
+  }
+})
+
+// PATCH /api/finanzas/categorias/:id — nombre, orden, parent_id (mover), activa.
+// tipo y codigo NO son editables (fijos por diseño).
+finanzasRoutes.patch('/categorias/:id', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const id = c.req.param('id')
+  if (!/^\d+$/.test(id)) return c.json({ error: 'id inválido' }, 400)
+  const idNum = Number(id)
+
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Body inválido' }, 400)
+  const { nombre, orden, parent_id, activa } = body as Record<string, unknown>
+
+  const sets: string[] = []
+  const params: unknown[] = []
+
+  if (nombre !== undefined) {
+    if (typeof nombre !== 'string' || nombre.trim() === '') return c.json({ error: 'nombre no puede estar vacío' }, 400)
+    params.push(nombre.trim())
+    sets.push(`nombre = $${params.length}`)
+  }
+  if (orden !== undefined) {
+    if (typeof orden !== 'number' || !Number.isInteger(orden)) return c.json({ error: 'orden debe ser un entero' }, 400)
+    params.push(orden)
+    sets.push(`orden = $${params.length}`)
+  }
+  if (activa !== undefined) {
+    if (typeof activa !== 'boolean') return c.json({ error: 'activa debe ser booleano' }, 400)
+    params.push(activa)
+    sets.push(`activa = $${params.length}`)
+  }
+
+  if (parent_id !== undefined) {
+    if (parent_id !== null && (typeof parent_id !== 'number' || !Number.isInteger(parent_id))) {
+      return c.json({ error: 'parent_id debe ser un entero o null' }, 400)
+    }
+    if (parent_id === idNum) return c.json({ error: 'Una categoría no puede ser su propio padre' }, 400)
+
+    if (parent_id !== null) {
+      // Recorre la cadena de ancestros desde el nuevo padre propuesto — si
+      // llegamos a idNum, mover aquí crearía un ciclo.
+      try {
+        let cursor: number | null = parent_id
+        const visited = new Set<number>()
+        while (cursor !== null) {
+          if (cursor === idNum) {
+            return c.json({ error: 'Ese movimiento crearía un ciclo: la categoría no puede ser su propio ancestro' }, 400)
+          }
+          if (visited.has(cursor)) break
+          visited.add(cursor)
+          const r = await finanzasDb.query('SELECT parent_id FROM categorias WHERE id = $1', [cursor])
+          if (r.rowCount === 0) return c.json({ error: 'parent_id no existe' }, 400)
+          cursor = r.rows[0].parent_id
+        }
+      } catch (err) {
+        return c.json({ error: err instanceof Error ? err.message : 'error validando jerarquía' }, 500)
+      }
+    }
+
+    params.push(parent_id)
+    sets.push(`parent_id = $${params.length}`)
+  }
+
+  if (sets.length === 0) return c.json({ error: 'Nada que actualizar' }, 400)
+  sets.push('updated_at = now()')
+  params.push(id)
+
+  try {
+    const result = await finanzasDb.query<CategoriaRow>(
+      `UPDATE categorias SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING id, parent_id, nombre, tipo, orden, activa`,
+      params
+    )
+    if (result.rowCount === 0) return c.json({ error: 'Categoría no encontrada' }, 404)
+    return c.json({ categoria: result.rows[0] })
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      return c.json({ error: 'Ya existe una categoría hermana con ese nombre en ese grupo' }, 409)
+    }
+    return c.json({ error: err instanceof Error ? err.message : 'update error' }, 500)
+  }
+})
+
+// PATCH /api/finanzas/categorias/:id/archivar — soft-delete. Impide archivar
+// un grupo con hijas activas (simple y seguro, sin cascada).
+finanzasRoutes.patch('/categorias/:id/archivar', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const id = c.req.param('id')
+  if (!/^\d+$/.test(id)) return c.json({ error: 'id inválido' }, 400)
+
+  try {
+    const hijas = await finanzasDb.query('SELECT COUNT(*) AS n FROM categorias WHERE parent_id = $1 AND activa = true', [id])
+    if (Number(hijas.rows[0].n) > 0) {
+      return c.json({ error: 'Esta categoría tiene subcategorías activas — archívalas primero' }, 409)
+    }
+    const result = await finanzasDb.query<CategoriaRow>(
+      `UPDATE categorias SET activa = false, updated_at = now() WHERE id = $1 RETURNING id, parent_id, nombre, tipo, orden, activa`,
+      [id]
+    )
+    if (result.rowCount === 0) return c.json({ error: 'Categoría no encontrada' }, 404)
+    return c.json({ categoria: result.rows[0] })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'update error' }, 500)
+  }
+})
+
+// PATCH /api/finanzas/categorias/:id/activar
+finanzasRoutes.patch('/categorias/:id/activar', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const id = c.req.param('id')
+  if (!/^\d+$/.test(id)) return c.json({ error: 'id inválido' }, 400)
+
+  try {
+    const result = await finanzasDb.query<CategoriaRow>(
+      `UPDATE categorias SET activa = true, updated_at = now() WHERE id = $1 RETURNING id, parent_id, nombre, tipo, orden, activa`,
+      [id]
+    )
+    if (result.rowCount === 0) return c.json({ error: 'Categoría no encontrada' }, 404)
+    return c.json({ categoria: result.rows[0] })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'update error' }, 500)
+  }
+})
+
+// ─── terceros — por ámbito, esquema ya en producción (#743) ─────────────
+
+const TERCERO_COLS = `t.id, t.ambito_id, t.core_contact_id, t.nombre, t.tipo, t.nif, t.direccion_fiscal,
+  t.activa, t.notas, t.created_at, t.updated_at`
+
+// GET /api/finanzas/terceros?ambito_id=&tipo=&activa=
+finanzasRoutes.get('/terceros', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const ambitoId = c.req.query('ambito_id')
+  const tipo = c.req.query('tipo')
+  const activaRaw = c.req.query('activa')
+
+  const conditions: string[] = []
+  const params: unknown[] = []
+  if (ambitoId !== undefined) {
+    if (!/^\d+$/.test(ambitoId)) return c.json({ error: 'ambito_id inválido' }, 400)
+    params.push(Number(ambitoId))
+    conditions.push(`t.ambito_id = $${params.length}`)
+  }
+  if (tipo !== undefined) {
+    if (!isTipoTercero(tipo)) return c.json({ error: `tipo debe ser uno de: ${TIPOS_TERCERO.join(', ')}` }, 400)
+    params.push(tipo)
+    conditions.push(`t.tipo = $${params.length}`)
+  }
+  if (activaRaw !== undefined) {
+    if (activaRaw !== 'true' && activaRaw !== 'false') return c.json({ error: 'activa debe ser true o false' }, 400)
+    params.push(activaRaw === 'true')
+    conditions.push(`t.activa = $${params.length}`)
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+
+  try {
+    const result = await finanzasDb.query(
+      `SELECT ${TERCERO_COLS}, a.nombre AS ambito_nombre, a.color AS ambito_color, a.orden AS ambito_orden
+       FROM terceros t
+       JOIN ambitos a ON a.id = t.ambito_id
+       ${where}
+       ORDER BY a.orden, t.nombre`,
+      params
+    )
+    return c.json({ terceros: result.rows })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'query error' }, 500)
+  }
+})
+
+// POST /api/finanzas/terceros
+finanzasRoutes.post('/terceros', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Body inválido' }, 400)
+  const { ambito_id, nombre, tipo, core_contact_id, nif, direccion_fiscal, notas } = body as Record<string, unknown>
+
+  if (typeof ambito_id !== 'number' || !Number.isInteger(ambito_id)) return c.json({ error: 'ambito_id es obligatorio' }, 400)
+  if (typeof nombre !== 'string' || nombre.trim() === '') return c.json({ error: 'nombre es obligatorio' }, 400)
+  if (!isTipoTercero(tipo)) return c.json({ error: `tipo debe ser uno de: ${TIPOS_TERCERO.join(', ')}` }, 400)
+  if (core_contact_id !== undefined && core_contact_id !== null && (typeof core_contact_id !== 'number' || !Number.isInteger(core_contact_id))) {
+    return c.json({ error: 'core_contact_id debe ser un entero o null' }, 400)
+  }
+  if (nif !== undefined && nif !== null && typeof nif !== 'string') return c.json({ error: 'nif debe ser texto' }, 400)
+  if (direccion_fiscal !== undefined && direccion_fiscal !== null && typeof direccion_fiscal !== 'string') {
+    return c.json({ error: 'direccion_fiscal debe ser texto' }, 400)
+  }
+  if (notas !== undefined && notas !== null && typeof notas !== 'string') return c.json({ error: 'notas debe ser texto' }, 400)
+
+  const nifNorm = typeof nif === 'string' && nif.trim() !== '' ? nif.trim().toUpperCase() : null
+
+  try {
+    const ambitoExists = await finanzasDb.query('SELECT 1 FROM ambitos WHERE id = $1', [ambito_id])
+    if (ambitoExists.rowCount === 0) return c.json({ error: 'ambito_id no existe' }, 400)
+
+    const result = await finanzasDb.query(
+      `INSERT INTO terceros (ambito_id, core_contact_id, nombre, tipo, nif, direccion_fiscal, notas)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING ${TERCERO_COLS.replaceAll('t.', '')}`,
+      [ambito_id, core_contact_id ?? null, nombre.trim(), tipo, nifNorm, direccion_fiscal ?? null, notas ?? null]
+    )
+    return c.json({ tercero: result.rows[0] }, 201)
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      return c.json({ error: 'Ya existe un tercero con ese NIF o ese contacto vinculado en este ámbito' }, 409)
+    }
+    return c.json({ error: err instanceof Error ? err.message : 'insert error' }, 500)
+  }
+})
+
+// PATCH /api/finanzas/terceros/:id — ambito_id NO es editable.
+finanzasRoutes.patch('/terceros/:id', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const id = c.req.param('id')
+  if (!/^\d+$/.test(id)) return c.json({ error: 'id inválido' }, 400)
+
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Body inválido' }, 400)
+  const { nombre, tipo, core_contact_id, nif, direccion_fiscal, activa, notas } = body as Record<string, unknown>
+
+  const sets: string[] = []
+  const params: unknown[] = []
+
+  if (nombre !== undefined) {
+    if (typeof nombre !== 'string' || nombre.trim() === '') return c.json({ error: 'nombre no puede estar vacío' }, 400)
+    params.push(nombre.trim())
+    sets.push(`nombre = $${params.length}`)
+  }
+  if (tipo !== undefined) {
+    if (!isTipoTercero(tipo)) return c.json({ error: `tipo debe ser uno de: ${TIPOS_TERCERO.join(', ')}` }, 400)
+    params.push(tipo)
+    sets.push(`tipo = $${params.length}`)
+  }
+  if (core_contact_id !== undefined) {
+    if (core_contact_id !== null && (typeof core_contact_id !== 'number' || !Number.isInteger(core_contact_id))) {
+      return c.json({ error: 'core_contact_id debe ser un entero o null' }, 400)
+    }
+    params.push(core_contact_id)
+    sets.push(`core_contact_id = $${params.length}`)
+  }
+  if (nif !== undefined) {
+    if (nif !== null && typeof nif !== 'string') return c.json({ error: 'nif debe ser texto' }, 400)
+    const nifNorm = typeof nif === 'string' && nif.trim() !== '' ? nif.trim().toUpperCase() : null
+    params.push(nifNorm)
+    sets.push(`nif = $${params.length}`)
+  }
+  if (direccion_fiscal !== undefined) {
+    if (direccion_fiscal !== null && typeof direccion_fiscal !== 'string') return c.json({ error: 'direccion_fiscal debe ser texto' }, 400)
+    params.push(direccion_fiscal)
+    sets.push(`direccion_fiscal = $${params.length}`)
+  }
+  if (notas !== undefined) {
+    if (notas !== null && typeof notas !== 'string') return c.json({ error: 'notas debe ser texto' }, 400)
+    params.push(notas)
+    sets.push(`notas = $${params.length}`)
+  }
+  if (activa !== undefined) {
+    if (typeof activa !== 'boolean') return c.json({ error: 'activa debe ser booleano' }, 400)
+    params.push(activa)
+    sets.push(`activa = $${params.length}`)
+  }
+
+  if (sets.length === 0) return c.json({ error: 'Nada que actualizar' }, 400)
+  sets.push('updated_at = now()')
+  params.push(id)
+
+  try {
+    const result = await finanzasDb.query(
+      `UPDATE terceros SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING ${TERCERO_COLS.replaceAll('t.', '')}`,
+      params
+    )
+    if (result.rowCount === 0) return c.json({ error: 'Tercero no encontrado' }, 404)
+    return c.json({ tercero: result.rows[0] })
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      return c.json({ error: 'Ya existe un tercero con ese NIF o ese contacto vinculado en este ámbito' }, 409)
+    }
+    return c.json({ error: err instanceof Error ? err.message : 'update error' }, 500)
+  }
+})
+
+// ─── core-contacts (imm_db) — opcional, solo lectura, vínculo blando ────
+
+// GET /api/finanzas/core-contacts — lista de contactos de imm_db para
+// ayudar a vincular un tercero. Puramente informativo: guardar
+// core_contact_id NO valida contra imm_db a nivel de BD (sin FK, a
+// propósito). Usa el pool de solo lectura ya existente en la app.
+finanzasRoutes.get('/core-contacts', async (c) => {
+  if (!immReadonlyDb) return c.json({ error: 'IMM_READONLY_DB_URL no configurada' }, 503)
+  try {
+    const result = await immReadonlyDb.query(
+      `SELECT id, full_name AS nombre FROM core_contacts WHERE active = true ORDER BY full_name`
+    )
+    return c.json({ contactos: result.rows })
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'query error' }, 500)
   }

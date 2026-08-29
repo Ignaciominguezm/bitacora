@@ -4,6 +4,8 @@ import { bitacoraDb } from '../db/index.js'
 import { getGateway } from '../gateway/index.js'
 import type { Ambito, Modo } from '../gateway/index.js'
 import { maybeUpdateSummary } from '../gateway/summarizer.js'
+import { parseActionProposal, stripActionProposal } from '../actions/parseActionProposal.js'
+import { applyActionProposal } from '../actions/applyActionProposal.js'
 
 export const cabinaRoutes = new Hono()
 
@@ -195,10 +197,21 @@ cabinaRoutes.post('/session/:id/message', async (c) => {
         // de fallback de arriba), esté o no el cliente todavía conectado —
         // así el corte de conexión nunca se traduce en una respuesta perdida.
         if (fullContent) {
-          await db.query(
-            `INSERT INTO cabina_messages (session_id, role, content, ambito, modo) VALUES ($1, 'assistant', $2, $3, $4)`,
-            [sessionId, fullContent, ambito, modo]
+          // #723-MVP: Unria puede emitir, como mucho, un bloque
+          // [ACCION_PROPUESTA] dentro de su respuesta. Se parsea una única
+          // vez aquí; lo que se guarda/renderiza como mensaje del asistente
+          // es siempre el texto SIN ese bloque (stripActionProposal), exista
+          // o no, sea válido o esté malformado — el bloque crudo nunca se
+          // le muestra al usuario ni sobrevive en el historial persistido.
+          const proposal = parseActionProposal(fullContent)
+          const cleanedContent = stripActionProposal(fullContent)
+
+          const insertResult = await db.query<{ id: string }>(
+            `INSERT INTO cabina_messages (session_id, role, content, ambito, modo)
+             VALUES ($1, 'assistant', $2, $3, $4) RETURNING id`,
+            [sessionId, cleanedContent, ambito, modo]
           )
+          const assistantMessageId = insertResult.rows[0].id
 
           // updated_at se toca en cada turno (no hay trigger) para que el
           // historial ordene por recencia; ambito/modo quedan como "actual" de
@@ -209,6 +222,19 @@ cabinaRoutes.post('/session/:id/message', async (c) => {
              WHERE id = $4`,
             [ambito, modo, autoTitle, sessionId]
           )
+
+          // Política determinista de aprobación (ver src/server/actions/) —
+          // nunca puede tirar el turno del usuario abajo: cualquier fallo
+          // aquí se registra y no se propaga (mismo espíritu best-effort que
+          // maybeUpdateSummary, más abajo).
+          try {
+            await applyActionProposal(db, { sessionId, messageId: assistantMessageId, proposal })
+          } catch (err) {
+            console.error(
+              `[cabina-actions] fallo aplicando la propuesta de acción sessionId=${sessionId}: ` +
+                `${err instanceof Error ? err.message : 'error desconocido'}`
+            )
+          }
         }
 
         if (clientConnected) {

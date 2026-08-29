@@ -5,11 +5,13 @@ import { MessageInput } from '../components/cabina/MessageInput'
 import { SessionList } from '../components/cabina/SessionList'
 import { ScopeSelector } from '../components/cabina/ScopeSelector'
 import { ModeSelector } from '../components/cabina/ModeSelector'
+import { ApprovalCard } from '../components/cabina/ApprovalCard'
 import { ACCENT, MUTED, TEXT } from '../components/cabina/theme'
 
 // Huecos reservados en el layout para entregas futuras — sin funcionalidad
 // todavía. Solo el sitio y el rótulo; nada que construir aquí en esta fase.
-const FUTURE_SECTIONS = ['Decisiones', 'Memoria', 'Tareas CoreWork', 'Adjuntos', 'Zona de aprobación']
+// "Zona de aprobación" salió de aquí en #723-MVP: ya es real (ApprovalCard).
+const FUTURE_SECTIONS = ['Decisiones', 'Memoria', 'Tareas CoreWork', 'Adjuntos']
 
 function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
@@ -44,6 +46,7 @@ export function CabinaUnriaPage() {
     messages,
     streaming,
     sessionProcessing,
+    approvals,
     error,
     setAmbito,
     setModo,
@@ -53,7 +56,9 @@ export function CabinaUnriaPage() {
     setArchivedView,
     archiveSession,
     unarchiveSession,
-    deleteSession
+    deleteSession,
+    approveAction,
+    rejectAction
   } = useAgentSession()
 
   const [input, setInput] = useState('')
@@ -158,6 +163,9 @@ export function CabinaUnriaPage() {
               streaming={streaming && i === messages.length - 1 && m.role === 'assistant'}
               onReload={m.incomplete ? handleReload : undefined}
             />
+          ))}
+          {approvals.map((a) => (
+            <ApprovalCard key={a.id} approval={a} onApprove={approveAction} onReject={rejectAction} />
           ))}
           <div ref={messagesEndRef} />
         </div>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Ambito, CabinaMessage, CabinaSessionDetail, CabinaSessionSummary, Modo } from '../types/cabina'
+import type { Ambito, CabinaApproval, CabinaMessage, CabinaSessionDetail, CabinaSessionSummary, Modo } from '../types/cabina'
 
 const DEFAULT_AMBITO: Ambito = 'proyectos_personales'
 const DEFAULT_MODO: Modo = 'diseno'
@@ -29,6 +29,7 @@ export function useAgentSession() {
   const [messages, setMessages] = useState<CabinaMessage[]>([])
   const [streaming, setStreaming] = useState(false)
   const [sessionProcessing, setSessionProcessing] = useState(false)
+  const [approvals, setApprovals] = useState<CabinaApproval[]>([])
   const [error, setError] = useState<string | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
@@ -66,9 +67,26 @@ export function useAgentSession() {
           setSessionProcessing(false)
           setMessages(Array.isArray(data.messages) ? data.messages : [])
           setTitle(data.title)
+          // El turno que terminó mientras no mirábamos pudo haber creado una
+          // propuesta de acción — la recogemos aquí, no solo tras un envío
+          // directo (ver sendMessage).
+          void fetchApprovals(id)
         }
       } catch { /* red intermitente — se reintenta en el próximo tick */ }
     }, POLL_INTERVAL_MS)
+  }
+
+  // #723-MVP — pendientes de la sesión (cola de aprobación). Se llama al
+  // seleccionar sesión, tras cada turno, y al resolver el polling — nunca
+  // bloquea la UI si falla (misma filosofía best-effort que el resto de
+  // refrescos de este hook).
+  async function fetchApprovals(sessionId: string) {
+    try {
+      const res = await fetch(`/api/approvals?sessionId=${sessionId}&status=pending`, { credentials: 'include' })
+      if (!res.ok) return
+      const data: CabinaApproval[] = await res.json()
+      if (activeIdRef.current === sessionId) setApprovals(Array.isArray(data) ? data : [])
+    } catch { /* no crítico */ }
   }
 
   useEffect(() => () => stopPolling(), [])
@@ -110,6 +128,7 @@ export function useAgentSession() {
       setMessages(Array.isArray(data.messages) ? data.messages : [])
       setSessionProcessing(data.processing)
       if (data.processing) startPolling(id)
+      void fetchApprovals(id)
     } catch {
       setMessages([])
       setError('No se pudo cargar la conversación')
@@ -158,7 +177,16 @@ export function useAgentSession() {
       // activeIdRef, no el `activeId` de estado: este closure puede venir de
       // un render donde activeId todavía era null (primer mensaje de una
       // sesión recién creada) aunque la sesión activa real ya sea `id`.
-      if (activeIdRef.current === id) setTitle(data.title)
+      if (activeIdRef.current === id) {
+        setTitle(data.title)
+        // #723-MVP: la burbuja local se fue llenando con los chunks crudos
+        // del stream (que pueden incluir un bloque [ACCION_PROPUESTA] sin
+        // recortar todavía — ver cabina.ts). Al terminar el turno,
+        // sustituimos por los mensajes ya persistidos (con el bloque
+        // quitado) para que ese texto crudo nunca quede visible más allá
+        // del instante en que llega por streaming.
+        setMessages(Array.isArray(data.messages) ? data.messages : [])
+      }
     } catch { /* no crítico — el título/orden local sigue siendo razonable */ }
   }
 
@@ -300,7 +328,10 @@ export function useAgentSession() {
 
       // El servidor persiste igual aunque nos hayamos ido a otra sesión —
       // solo refrescamos metadatos (título/orden) si seguimos mirándola.
-      if (activeIdRef.current === sessionId) await refreshSessionMeta(sessionId)
+      if (activeIdRef.current === sessionId) {
+        await refreshSessionMeta(sessionId)
+        void fetchApprovals(sessionId)
+      }
     } catch (err) {
       const isAbort = err instanceof Error && err.name === 'AbortError'
       // El servidor sigue consumiendo el gateway y persiste la respuesta
@@ -323,6 +354,36 @@ export function useAgentSession() {
     }
   }
 
+  // #723-MVP — aprobar/rechazar una propuesta pendiente. El estado decidido
+  // (ejecutada/fallida/rechazada/caducada) nunca se adivina aquí — viene tal
+  // cual del backend en la respuesta — pero la tarjeta se actualiza IN SITU
+  // en vez de desaparecer: un fetchApprovals(status=pending) tras resolverla
+  // la sacaría de la lista al dejar de estar pendiente, y el usuario nunca
+  // vería si quedó ejecutada (con su "SIMULADO") o rechazada. Solo se cae al
+  // refetch completo si la petición en sí falla (red), para no dejar la
+  // tarjeta en un estado que no se sabe si es real.
+  async function approveAction(id: string) {
+    try {
+      const res = await fetch(`/api/approvals/${id}/approve`, { method: 'POST', credentials: 'include' })
+      const updated: CabinaApproval = await res.json()
+      setApprovals((prev) => prev.map((a) => (a.id === id ? updated : a)))
+    } catch {
+      setError('No se pudo aprobar la acción')
+      if (activeId) await fetchApprovals(activeId)
+    }
+  }
+
+  async function rejectAction(id: string) {
+    try {
+      const res = await fetch(`/api/approvals/${id}/reject`, { method: 'POST', credentials: 'include' })
+      const updated: CabinaApproval = await res.json()
+      setApprovals((prev) => prev.map((a) => (a.id === id ? updated : a)))
+    } catch {
+      setError('No se pudo rechazar la acción')
+      if (activeId) await fetchApprovals(activeId)
+    }
+  }
+
   return {
     sessions,
     archivedSessions,
@@ -335,6 +396,7 @@ export function useAgentSession() {
     messages,
     streaming,
     sessionProcessing,
+    approvals,
     error,
     setAmbito,
     setModo,
@@ -345,6 +407,8 @@ export function useAgentSession() {
     setArchivedView,
     archiveSession,
     unarchiveSession,
-    deleteSession
+    deleteSession,
+    approveAction,
+    rejectAction
   }
 }

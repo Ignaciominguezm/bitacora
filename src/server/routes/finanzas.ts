@@ -41,6 +41,19 @@ const TIPOS_TERCERO = ['cliente', 'proveedor', 'ambos', 'otro'] as const
 const isTipoTercero = (v: unknown): v is (typeof TIPOS_TERCERO)[number] =>
   typeof v === 'string' && (TIPOS_TERCERO as readonly string[]).includes(v)
 
+// movimientos_reales.tipo tiene 5 valores en BD, pero este bloque (#743
+// pieza 2, bloque A) SOLO crea/edita ingreso|gasto|ajuste — los traspasos
+// son el bloque B, otra tarea. isTipoMovimientoReal (todos) se usa para
+// detectar y rechazar traspaso_* con mensaje claro, no para permitirlos.
+const TIPOS_MOVIMIENTO_REAL_CREABLE = ['ingreso', 'gasto', 'ajuste'] as const
+const isTipoMovimientoRealCreable = (v: unknown): v is (typeof TIPOS_MOVIMIENTO_REAL_CREABLE)[number] =>
+  typeof v === 'string' && (TIPOS_MOVIMIENTO_REAL_CREABLE as readonly string[]).includes(v)
+
+const TIPOS_MOVIMIENTO_REAL_TODOS = ['ingreso', 'gasto', 'traspaso_salida', 'traspaso_entrada', 'ajuste'] as const
+const isTipoMovimientoRealTodos = (v: unknown): v is (typeof TIPOS_MOVIMIENTO_REAL_TODOS)[number] =>
+  typeof v === 'string' && (TIPOS_MOVIMIENTO_REAL_TODOS as readonly string[]).includes(v)
+const isTraspaso = (tipo: string): boolean => tipo === 'traspaso_salida' || tipo === 'traspaso_entrada'
+
 // La "semana" canónica es siempre el lunes ISO de esa semana. Nunca se
 // confía en la fecha que manda el cliente sin normalizar por aquí.
 function normalizeToMonday(dateStr: string): string | null {
@@ -1566,6 +1579,376 @@ finanzasRoutes.get('/core-contacts', async (c) => {
       `SELECT id, full_name AS nombre FROM core_contacts WHERE active = true ORDER BY full_name`
     )
     return c.json({ contactos: result.rows })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'query error' }, 500)
+  }
+})
+
+// ─── saldos de apertura — punto de partida del cálculo (#743 pieza 2A) ──
+
+// GET /api/finanzas/apertura?anio=YYYY — por cuenta activa, su apertura de
+// ese año si existe (o null, indicando que falta).
+finanzasRoutes.get('/apertura', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const raw = c.req.query('anio')
+  const anio = raw !== undefined ? Number(raw) : new Date().getFullYear()
+  if (!Number.isInteger(anio) || anio < 2000 || anio > 2100) return c.json({ error: 'anio inválido' }, 400)
+
+  try {
+    const result = await finanzasDb.query(
+      `SELECT c.id AS cuenta_id, c.nombre AS cuenta_nombre, c.tipo AS cuenta_tipo,
+              c.ambito_id, a.nombre AS ambito_nombre, a.color AS ambito_color, a.orden AS ambito_orden,
+              sa.id AS apertura_id, sa.saldo, sa.notas, sa.updated_at
+       FROM cuentas_financieras c
+       JOIN ambitos a ON a.id = c.ambito_id
+       LEFT JOIN saldos_apertura sa ON sa.cuenta_id = c.id AND sa.anio = $1
+       WHERE c.activa = true
+       ORDER BY a.orden, c.nombre`,
+      [anio]
+    )
+    return c.json({ anio, cuentas: result.rows })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'query error' }, 500)
+  }
+})
+
+// PUT /api/finanzas/apertura — upsert sobre UNIQUE(cuenta_id, anio)
+finanzasRoutes.put('/apertura', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Body inválido' }, 400)
+  const { cuenta_id, anio, saldo, notas } = body as Record<string, unknown>
+
+  if (typeof cuenta_id !== 'number' || !Number.isInteger(cuenta_id)) return c.json({ error: 'cuenta_id es obligatorio' }, 400)
+  if (typeof anio !== 'number' || !Number.isInteger(anio) || anio < 2000 || anio > 2100) return c.json({ error: 'anio inválido' }, 400)
+  const saldoNum = parseNumeric(saldo)
+  if (saldoNum === null) return c.json({ error: 'saldo debe ser numérico' }, 400)
+  if (notas !== undefined && notas !== null && typeof notas !== 'string') return c.json({ error: 'notas debe ser texto' }, 400)
+
+  try {
+    const cuentaExists = await finanzasDb.query('SELECT 1 FROM cuentas_financieras WHERE id = $1', [cuenta_id])
+    if (cuentaExists.rowCount === 0) return c.json({ error: 'cuenta_id no existe' }, 400)
+
+    const result = await finanzasDb.query(
+      `INSERT INTO saldos_apertura (cuenta_id, anio, saldo, notas)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (cuenta_id, anio) DO UPDATE SET saldo = EXCLUDED.saldo, notas = EXCLUDED.notas, updated_at = now()
+       RETURNING id, cuenta_id, anio, saldo, notas, created_at, updated_at`,
+      [cuenta_id, anio, saldoNum, notas ?? null]
+    )
+    return c.json({ apertura: result.rows[0] })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'upsert error' }, 500)
+  }
+})
+
+// ─── movimientos reales — solo ingreso/gasto/ajuste en este bloque ──────
+// Traspasos (traspaso_salida/traspaso_entrada) son el BLOQUE B, otra
+// tarea: aquí se rechazan explícitamente con mensaje, nunca se crean,
+// editan ni borran desde estos endpoints.
+
+const MOVIMIENTO_TRASPASO_MSG = 'Los traspasos se crean en su propia pantalla (bloque B, aún no implementado)'
+
+// GET /api/finanzas/movimientos — lee v_movimientos_reales (categoría,
+// tercero y cuenta ya resueltos por la vista). El agrupado por ámbito NO
+// depende de los nombres de columna de la vista: se une explícitamente a
+// cuentas_financieras + ambitos aquí, así que es fiable pase lo que pase.
+finanzasRoutes.get('/movimientos', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const ambitoId = c.req.query('ambito_id')
+  const cuentaId = c.req.query('cuenta_id')
+  const categoriaId = c.req.query('categoria_id')
+  const terceroId = c.req.query('tercero_id')
+  const tipo = c.req.query('tipo')
+  const desde = c.req.query('desde')
+  const hasta = c.req.query('hasta')
+  const limitRaw = c.req.query('limit')
+  const offsetRaw = c.req.query('offset')
+
+  const conditions: string[] = []
+  const params: unknown[] = []
+
+  if (ambitoId !== undefined) {
+    if (!/^\d+$/.test(ambitoId)) return c.json({ error: 'ambito_id inválido' }, 400)
+    params.push(Number(ambitoId))
+    conditions.push(`a.id = $${params.length}`)
+  }
+  if (cuentaId !== undefined) {
+    if (!/^\d+$/.test(cuentaId)) return c.json({ error: 'cuenta_id inválido' }, 400)
+    params.push(Number(cuentaId))
+    conditions.push(`v.cuenta_id = $${params.length}`)
+  }
+  if (categoriaId !== undefined) {
+    if (!/^\d+$/.test(categoriaId)) return c.json({ error: 'categoria_id inválido' }, 400)
+    params.push(Number(categoriaId))
+    conditions.push(`v.categoria_id = $${params.length}`)
+  }
+  if (terceroId !== undefined) {
+    if (!/^\d+$/.test(terceroId)) return c.json({ error: 'tercero_id inválido' }, 400)
+    params.push(Number(terceroId))
+    conditions.push(`v.tercero_id = $${params.length}`)
+  }
+  if (tipo !== undefined) {
+    if (!isTipoMovimientoRealTodos(tipo)) return c.json({ error: `tipo debe ser uno de: ${TIPOS_MOVIMIENTO_REAL_TODOS.join(', ')}` }, 400)
+    params.push(tipo)
+    conditions.push(`v.tipo = $${params.length}`)
+  }
+  if (desde !== undefined) {
+    if (!ISO_DATE_RE.test(desde)) return c.json({ error: 'desde debe tener formato YYYY-MM-DD' }, 400)
+    params.push(desde)
+    conditions.push(`v.fecha >= $${params.length}`)
+  }
+  if (hasta !== undefined) {
+    if (!ISO_DATE_RE.test(hasta)) return c.json({ error: 'hasta debe tener formato YYYY-MM-DD' }, 400)
+    params.push(hasta)
+    conditions.push(`v.fecha <= $${params.length}`)
+  }
+
+  const limit = limitRaw !== undefined && /^\d+$/.test(limitRaw) ? Math.min(Number(limitRaw), 500) : 100
+  const offset = offsetRaw !== undefined && /^\d+$/.test(offsetRaw) ? Number(offsetRaw) : 0
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+
+  try {
+    const result = await finanzasDb.query(
+      `SELECT v.*, TO_CHAR(v.fecha, 'YYYY-MM-DD') AS fecha,
+              a.id AS ambito_id, a.nombre AS ambito_nombre, a.color AS ambito_color, a.orden AS ambito_orden
+       FROM v_movimientos_reales v
+       JOIN cuentas_financieras cf ON cf.id = v.cuenta_id
+       JOIN ambitos a ON a.id = cf.ambito_id
+       ${where}
+       ORDER BY v.fecha DESC, v.id DESC
+       LIMIT ${limit} OFFSET ${offset}`,
+      params
+    )
+    return c.json({ movimientos: result.rows, limit, offset })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'query error' }, 500)
+  }
+})
+
+// POST /api/finanzas/movimientos — solo ingreso/gasto/ajuste. El usuario
+// mete siempre un importe positivo; el signo lo decide el backend según
+// tipo (ajuste: según el campo `signo` que manda la UI).
+finanzasRoutes.post('/movimientos', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Body inválido' }, 400)
+  const { cuenta_id, fecha, tipo, importe, signo, categoria_id, tercero_id, concepto, notas } = body as Record<string, unknown>
+
+  if (typeof cuenta_id !== 'number' || !Number.isInteger(cuenta_id)) return c.json({ error: 'cuenta_id es obligatorio' }, 400)
+  if (typeof fecha !== 'string' || !ISO_DATE_RE.test(fecha)) return c.json({ error: 'fecha debe tener formato YYYY-MM-DD' }, 400)
+
+  if (typeof tipo === 'string' && isTraspaso(tipo)) return c.json({ error: MOVIMIENTO_TRASPASO_MSG }, 400)
+  if (!isTipoMovimientoRealCreable(tipo)) {
+    return c.json({ error: `tipo debe ser uno de: ${TIPOS_MOVIMIENTO_REAL_CREABLE.join(', ')}` }, 400)
+  }
+
+  const importeNum = parseNumeric(importe)
+  if (importeNum === null || importeNum <= 0) {
+    return c.json({ error: 'importe es obligatorio y debe ser un número mayor que 0 (el signo lo pone el sistema según el tipo)' }, 400)
+  }
+
+  if (categoria_id !== undefined && categoria_id !== null && (typeof categoria_id !== 'number' || !Number.isInteger(categoria_id))) {
+    return c.json({ error: 'categoria_id debe ser un entero o null' }, 400)
+  }
+  if (tercero_id !== undefined && tercero_id !== null && (typeof tercero_id !== 'number' || !Number.isInteger(tercero_id))) {
+    return c.json({ error: 'tercero_id debe ser un entero o null' }, 400)
+  }
+  if (concepto !== undefined && concepto !== null && typeof concepto !== 'string') return c.json({ error: 'concepto debe ser texto' }, 400)
+  if (notas !== undefined && notas !== null && typeof notas !== 'string') return c.json({ error: 'notas debe ser texto' }, 400)
+
+  // Validaciones que anticipan los CHECK de BD, para dar buen mensaje.
+  if (tipo === 'gasto' && !categoria_id) return c.json({ error: 'Un gasto requiere categoría' }, 400)
+  if (tipo === 'ingreso' && !tercero_id) return c.json({ error: 'Un ingreso requiere tercero' }, 400)
+
+  let importeFirmado: number
+  if (tipo === 'ingreso') {
+    importeFirmado = Math.abs(importeNum)
+  } else if (tipo === 'gasto') {
+    importeFirmado = -Math.abs(importeNum)
+  } else {
+    if (signo !== 'suma' && signo !== 'resta') {
+      return c.json({ error: `Un ajuste requiere signo: 'suma' o 'resta'` }, 400)
+    }
+    importeFirmado = signo === 'suma' ? Math.abs(importeNum) : -Math.abs(importeNum)
+  }
+
+  try {
+    const cuentaExists = await finanzasDb.query('SELECT 1 FROM cuentas_financieras WHERE id = $1', [cuenta_id])
+    if (cuentaExists.rowCount === 0) return c.json({ error: 'cuenta_id no existe' }, 400)
+
+    if (categoria_id) {
+      const catResult = await finanzasDb.query('SELECT tipo FROM categorias WHERE id = $1', [categoria_id])
+      if (catResult.rowCount === 0) return c.json({ error: 'categoria_id no existe' }, 400)
+      const catTipo = catResult.rows[0].tipo as string
+      if (tipo === 'gasto' && catTipo !== 'gasto' && catTipo !== 'ambos') {
+        return c.json({ error: 'La categoría elegida no es de tipo gasto (ni ambos)' }, 400)
+      }
+      if (tipo === 'ingreso' && catTipo !== 'ingreso' && catTipo !== 'ambos') {
+        return c.json({ error: 'La categoría elegida no es de tipo ingreso (ni ambos)' }, 400)
+      }
+    }
+    if (tercero_id) {
+      const terExists = await finanzasDb.query('SELECT 1 FROM terceros WHERE id = $1', [tercero_id])
+      if (terExists.rowCount === 0) return c.json({ error: 'tercero_id no existe' }, 400)
+    }
+
+    const result = await finanzasDb.query(
+      `INSERT INTO movimientos_reales (cuenta_id, fecha, tipo, importe, categoria_id, tercero_id, concepto, notas)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, cuenta_id, TO_CHAR(fecha, 'YYYY-MM-DD') AS fecha, tipo, importe, moneda,
+                 categoria_id, tercero_id, grupo_traspaso, concepto, notas, created_at, updated_at`,
+      [cuenta_id, fecha, tipo, importeFirmado, categoria_id ?? null, tercero_id ?? null, concepto ?? null, notas ?? null]
+    )
+    return c.json({ movimiento: result.rows[0] }, 201)
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'insert error' }, 500)
+  }
+})
+
+// PATCH /api/finanzas/movimientos/:id — tipo NO se cambia aquí (para no
+// convertir un ingreso en gasto por error). Reaplica el signo del tipo
+// existente sobre el nuevo importe si se manda uno nuevo.
+finanzasRoutes.patch('/movimientos/:id', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const id = c.req.param('id')
+  if (!/^\d+$/.test(id)) return c.json({ error: 'id inválido' }, 400)
+
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Body inválido' }, 400)
+  const { fecha, importe, signo, categoria_id, tercero_id, concepto, notas } = body as Record<string, unknown>
+
+  try {
+    const existing = await finanzasDb.query('SELECT tipo FROM movimientos_reales WHERE id = $1', [id])
+    if (existing.rowCount === 0) return c.json({ error: 'Movimiento no encontrado' }, 404)
+    const tipoExistente = existing.rows[0].tipo as string
+    if (isTraspaso(tipoExistente)) return c.json({ error: MOVIMIENTO_TRASPASO_MSG }, 400)
+
+    const sets: string[] = []
+    const params: unknown[] = []
+
+    if (fecha !== undefined) {
+      if (typeof fecha !== 'string' || !ISO_DATE_RE.test(fecha)) return c.json({ error: 'fecha debe tener formato YYYY-MM-DD' }, 400)
+      params.push(fecha)
+      sets.push(`fecha = $${params.length}`)
+    }
+
+    if (importe !== undefined) {
+      const importeNum = parseNumeric(importe)
+      if (importeNum === null || importeNum <= 0) {
+        return c.json({ error: 'importe debe ser un número mayor que 0 (el signo lo pone el sistema)' }, 400)
+      }
+      let importeFirmado: number
+      if (tipoExistente === 'ingreso') {
+        importeFirmado = Math.abs(importeNum)
+      } else if (tipoExistente === 'gasto') {
+        importeFirmado = -Math.abs(importeNum)
+      } else {
+        if (signo !== 'suma' && signo !== 'resta') {
+          return c.json({ error: `Este ajuste requiere signo: 'suma' o 'resta'` }, 400)
+        }
+        importeFirmado = signo === 'suma' ? Math.abs(importeNum) : -Math.abs(importeNum)
+      }
+      params.push(importeFirmado)
+      sets.push(`importe = $${params.length}`)
+    }
+
+    if (categoria_id !== undefined) {
+      if (categoria_id !== null && (typeof categoria_id !== 'number' || !Number.isInteger(categoria_id))) {
+        return c.json({ error: 'categoria_id debe ser un entero o null' }, 400)
+      }
+      if (tipoExistente === 'gasto' && !categoria_id) return c.json({ error: 'Un gasto requiere categoría' }, 400)
+      params.push(categoria_id)
+      sets.push(`categoria_id = $${params.length}`)
+    }
+    if (tercero_id !== undefined) {
+      if (tercero_id !== null && (typeof tercero_id !== 'number' || !Number.isInteger(tercero_id))) {
+        return c.json({ error: 'tercero_id debe ser un entero o null' }, 400)
+      }
+      if (tipoExistente === 'ingreso' && !tercero_id) return c.json({ error: 'Un ingreso requiere tercero' }, 400)
+      params.push(tercero_id)
+      sets.push(`tercero_id = $${params.length}`)
+    }
+    if (concepto !== undefined) {
+      if (concepto !== null && typeof concepto !== 'string') return c.json({ error: 'concepto debe ser texto' }, 400)
+      params.push(concepto)
+      sets.push(`concepto = $${params.length}`)
+    }
+    if (notas !== undefined) {
+      if (notas !== null && typeof notas !== 'string') return c.json({ error: 'notas debe ser texto' }, 400)
+      params.push(notas)
+      sets.push(`notas = $${params.length}`)
+    }
+
+    if (sets.length === 0) return c.json({ error: 'Nada que actualizar' }, 400)
+    sets.push('updated_at = now()')
+    params.push(id)
+
+    const result = await finanzasDb.query(
+      `UPDATE movimientos_reales SET ${sets.join(', ')} WHERE id = $${params.length}
+       RETURNING id, cuenta_id, TO_CHAR(fecha, 'YYYY-MM-DD') AS fecha, tipo, importe, moneda,
+                 categoria_id, tercero_id, grupo_traspaso, concepto, notas, created_at, updated_at`,
+      params
+    )
+    return c.json({ movimiento: result.rows[0] })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'update error' }, 500)
+  }
+})
+
+// DELETE /api/finanzas/movimientos/:id — borrado físico permitido para
+// movimientos simples (sin histórico contable que proteger todavía).
+// Los traspasos se rechazan: los gestionará el bloque B con su lógica de
+// grupo (borrar los dos lados a la vez).
+finanzasRoutes.delete('/movimientos/:id', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const id = c.req.param('id')
+  if (!/^\d+$/.test(id)) return c.json({ error: 'id inválido' }, 400)
+
+  try {
+    const existing = await finanzasDb.query('SELECT tipo FROM movimientos_reales WHERE id = $1', [id])
+    if (existing.rowCount === 0) return c.json({ error: 'Movimiento no encontrado' }, 404)
+    if (isTraspaso(existing.rows[0].tipo as string)) return c.json({ error: MOVIMIENTO_TRASPASO_MSG }, 400)
+
+    await finanzasDb.query('DELETE FROM movimientos_reales WHERE id = $1', [id])
+    return c.json({ ok: true })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'delete error' }, 500)
+  }
+})
+
+// ─── saldo calculado (solo lectura) — v_cuentas_saldo_calculado ─────────
+// El agrupado por ámbito, igual que en /movimientos, se hace con un JOIN
+// propio a cuentas_financieras + ambitos — no depende de que la vista
+// exponga columnas de ámbito con un nombre concreto.
+finanzasRoutes.get('/saldo-calculado', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const ambitoId = c.req.query('ambito_id')
+
+  const params: unknown[] = []
+  let where = 'WHERE c.activa = true'
+  if (ambitoId !== undefined) {
+    if (!/^\d+$/.test(ambitoId)) return c.json({ error: 'ambito_id inválido' }, 400)
+    params.push(Number(ambitoId))
+    where += ` AND a.id = $${params.length}`
+  }
+
+  try {
+    const result = await finanzasDb.query(
+      `SELECT c.id AS cuenta_id, c.nombre AS cuenta_nombre, c.tipo AS cuenta_tipo,
+              c.ambito_id, a.nombre AS ambito_nombre, a.color AS ambito_color, a.orden AS ambito_orden,
+              v.saldo_apertura, v.suma_movimientos, v.saldo_calculado, v.requiere_saldo_apertura,
+              v.saldo_observado, TO_CHAR(v.saldo_observado_semana, 'YYYY-MM-DD') AS saldo_observado_semana,
+              v.diferencia_conciliacion
+       FROM v_cuentas_saldo_calculado v
+       JOIN cuentas_financieras c ON c.id = v.cuenta_id
+       JOIN ambitos a ON a.id = c.ambito_id
+       ${where}
+       ORDER BY a.orden, c.nombre`,
+      params
+    )
+    return c.json({ cuentas: result.rows })
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'query error' }, 500)
   }

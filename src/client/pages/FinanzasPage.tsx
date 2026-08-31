@@ -2,18 +2,18 @@ import { useState, useEffect } from 'react'
 import { type Ambito } from './finanzas/shared'
 import { FinanzasDashboard } from './finanzas/FinanzasDashboard'
 import { CuentasView } from './finanzas/CuentasView'
-import { RevisionSemanalView } from './finanzas/RevisionSemanalView'
+import { VistaMensualView } from './finanzas/VistaMensualView'
 import { CategoriasView } from './finanzas/CategoriasView'
 import { TercerosView } from './finanzas/TercerosView'
 import { MovimientosView } from './finanzas/MovimientosView'
 import { ObligacionesView } from './finanzas/ObligacionesView'
 
-type View = 'dashboard' | 'cuentas' | 'revision' | 'categorias' | 'terceros' | 'movimientos' | 'obligaciones'
+type View = 'dashboard' | 'cuentas' | 'vista-mensual' | 'categorias' | 'terceros' | 'movimientos' | 'obligaciones'
 
 const TABS: Array<{ id: View; label: string }> = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'cuentas', label: 'Cuentas' },
-  { id: 'revision', label: 'Revisión semanal' },
+  { id: 'vista-mensual', label: 'Vista mensual' },
   { id: 'categorias', label: 'Categorías' },
   { id: 'terceros', label: 'Terceros' },
   { id: 'movimientos', label: 'Movimientos' },
@@ -39,7 +39,7 @@ export function FinanzasPage() {
             FINANZAS
           </h1>
           <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', margin: '4px 0 0' }}>
-            Cuentas y revisión semanal por ámbito
+            Cuentas y vista mensual por ámbito
           </p>
         </div>
 
@@ -69,7 +69,7 @@ export function FinanzasPage() {
 
       {view === 'dashboard' && <FinanzasDashboard onNavigate={setView} />}
       {view === 'cuentas' && <CuentasView ambitos={ambitos} />}
-      {view === 'revision' && <RevisionSemanalView ambitos={ambitos} />}
+      {view === 'vista-mensual' && <VistaMensualView ambitos={ambitos} />}
       {view === 'categorias' && <CategoriasView />}
       {view === 'terceros' && <TercerosView ambitos={ambitos} />}
       {view === 'movimientos' && <MovimientosView ambitos={ambitos} />}

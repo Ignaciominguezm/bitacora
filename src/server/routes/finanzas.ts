@@ -2543,3 +2543,96 @@ finanzasRoutes.get('/obligaciones/sugerencias', async (c) => {
     return c.json({ error: err instanceof Error ? err.message : 'query error' }, 500)
   }
 })
+
+// ─── vista mensual (#743 pieza 3) ────────────────────────────────────────
+// Agregador de solo lectura para el resumen de cobertura mensual por
+// ámbito: disponible (mismo cálculo que /dashboard: saldo_calculado −
+// reservas activas, vía v_cuentas_saldo_calculado — nunca saldos_semanales)
+// vs total de obligaciones_instancias PENDIENTES cuyo periodo cae en el mes
+// pedido. Reutiliza colchonMinimo()/semaforoDe() del dashboard semanal
+// (#713) tal cual: mismo umbral provisional, misma clasificación
+// roja/ámbar/verde — ver esas funciones más arriba en este archivo.
+const MES_RE = /^\d{4}-\d{2}$/
+
+// GET /api/finanzas/vista-mensual?mes=YYYY-MM
+finanzasRoutes.get('/vista-mensual', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const mesParam = c.req.query('mes')
+  const mes = mesParam !== undefined ? mesParam : new Date().toISOString().slice(0, 7)
+  if (!MES_RE.test(mes)) return c.json({ error: 'mes debe tener formato YYYY-MM' }, 400)
+  const periodo = `${mes}-01`
+
+  try {
+    const [ambitosResult, cuentasResult, reservasResult, obligacionesResult] = await Promise.all([
+      finanzasDb.query('SELECT id, nombre, orden, color FROM ambitos ORDER BY orden'),
+      finanzasDb.query(
+        `SELECT c.id, c.ambito_id, v.saldo_calculado, v.requiere_saldo_apertura
+         FROM cuentas_financieras c
+         JOIN v_cuentas_saldo_calculado v ON v.cuenta_id = c.id
+         WHERE c.activa = true`
+      ),
+      finanzasDb.query(
+        `SELECT c.ambito_id, COALESCE(SUM(r.importe), 0) AS total
+         FROM reservas r
+         JOIN cuentas_financieras c ON c.id = r.cuenta_id
+         WHERE r.estado = 'activa' AND c.activa = true
+         GROUP BY c.ambito_id`
+      ),
+      finanzasDb.query(
+        `SELECT a.id AS ambito_id, COUNT(*) AS n, COALESCE(SUM(i.importe_esperado), 0) AS total
+         FROM obligaciones_instancias i
+         JOIN obligaciones o ON o.id = i.obligacion_id
+         JOIN ambitos a ON a.id = o.ambito_id
+         WHERE i.periodo = $1 AND i.estado = 'pendiente'
+         GROUP BY a.id`,
+        [periodo]
+      )
+    ])
+
+    const ambitos = ambitosResult.rows.map((amb) => {
+      const cuentasAmbito = cuentasResult.rows.filter((cta) => cta.ambito_id === amb.id)
+      // Igual criterio que /dashboard: cuentas sin apertura no cuentan como
+      // 0 (falsearía el disponible) — se suman solo las que tienen dato y
+      // se avisa por separado de las que faltan.
+      const cuentasSinApertura = cuentasAmbito.filter((cta) => cta.saldo_calculado === null)
+      const saldo_total = cuentasAmbito.reduce(
+        (sum, cta) => sum + (cta.saldo_calculado !== null ? Number(cta.saldo_calculado) : 0),
+        0
+      )
+      const saldo_incompleto = cuentasSinApertura.length > 0
+
+      const reservaRow = reservasResult.rows.find((r) => r.ambito_id === amb.id)
+      const reservas_activas = reservaRow ? Number(reservaRow.total) : 0
+      const disponible = saldo_total - reservas_activas
+
+      const oblRow = obligacionesResult.rows.find((o) => o.ambito_id === amb.id)
+      const obligaciones_mes_total = oblRow ? Number(oblRow.total) : 0
+      const obligaciones_mes_count = oblRow ? Number(oblRow.n) : 0
+
+      const margen = disponible - obligaciones_mes_total
+      const colchon_minimo = colchonMinimo(amb.id)
+      const semaforo = semaforoDe(margen, colchon_minimo)
+
+      return {
+        id: amb.id,
+        nombre: amb.nombre,
+        color: amb.color,
+        orden: amb.orden,
+        disponible,
+        saldo_incompleto,
+        cuentas_sin_apertura_n: cuentasSinApertura.length,
+        reservas_activas,
+        obligaciones_mes_total,
+        obligaciones_mes_count,
+        margen,
+        colchon_minimo,
+        colchon_provisional: true,
+        semaforo
+      }
+    })
+
+    return c.json({ mes, periodo, ambitos })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'query error' }, 500)
+  }
+})

@@ -81,6 +81,68 @@ function parseNumeric(v: unknown): number | null {
   return Number.isNaN(n) ? null : n
 }
 
+const PERIODICIDADES_OBLIGACION = ['mensual', 'trimestral', 'anual', 'puntual'] as const
+const isPeriodicidadObligacion = (v: unknown): v is (typeof PERIODICIDADES_OBLIGACION)[number] =>
+  typeof v === 'string' && (PERIODICIDADES_OBLIGACION as readonly string[]).includes(v)
+
+const TIPOS_IMPORTE_OBLIGACION = ['fijo', 'variable'] as const
+const isTipoImporteObligacion = (v: unknown): v is (typeof TIPOS_IMPORTE_OBLIGACION)[number] =>
+  typeof v === 'string' && (TIPOS_IMPORTE_OBLIGACION as readonly string[]).includes(v)
+
+const ESTADOS_INSTANCIA_OBLIGACION = ['pendiente', 'cubierta', 'cancelada'] as const
+const isEstadoInstanciaObligacion = (v: unknown): v is (typeof ESTADOS_INSTANCIA_OBLIGACION)[number] =>
+  typeof v === 'string' && (ESTADOS_INSTANCIA_OBLIGACION as readonly string[]).includes(v)
+
+function pad2(n: number): string {
+  return String(n).padStart(2, '0')
+}
+
+function lastDayOfMonth(year: number, month0: number): number {
+  return new Date(Date.UTC(year, month0 + 1, 0)).getUTCDate()
+}
+
+function addMonths(year: number, month0: number, months: number): { year: number; month0: number } {
+  const total = month0 + months
+  return { year: year + Math.floor(total / 12), month0: ((total % 12) + 12) % 12 }
+}
+
+// fecha_vencimiento = fin del periodo + meses_desfase meses, en el día
+// dia_vencimiento (o el último día del mes si no hay día fijado o si el
+// día fijado no existe en ese mes — p.ej. día 31 en febrero).
+function computeFechaVencimiento(periodEndYear: number, periodEndMonth0: number, mesesDesfase: number, diaVencimiento: number | null): string {
+  const { year, month0 } = addMonths(periodEndYear, periodEndMonth0, mesesDesfase)
+  const lastDay = lastDayOfMonth(year, month0)
+  const day = diaVencimiento !== null ? Math.min(diaVencimiento, lastDay) : lastDay
+  return `${year}-${pad2(month0 + 1)}-${pad2(day)}`
+}
+
+interface InstanciaGenerada {
+  periodo: string
+  fecha_vencimiento: string
+}
+
+// Genera las instancias del AÑO EN CURSO para una plantilla recién creada
+// (mensual/trimestral/anual). 'puntual' no genera nada aquí — sus
+// instancias se crean a mano vía POST /obligaciones/instancias.
+function generarInstanciasAnio(periodicidad: string, anio: number, mesesDesfase: number, diaVencimiento: number | null): InstanciaGenerada[] {
+  if (periodicidad === 'mensual') {
+    return Array.from({ length: 12 }, (_, m) => ({
+      periodo: `${anio}-${pad2(m + 1)}-01`,
+      fecha_vencimiento: computeFechaVencimiento(anio, m, mesesDesfase, diaVencimiento)
+    }))
+  }
+  if (periodicidad === 'trimestral') {
+    return [0, 3, 6, 9].map((m) => ({
+      periodo: `${anio}-${pad2(m + 1)}-01`,
+      fecha_vencimiento: computeFechaVencimiento(anio, m + 2, mesesDesfase, diaVencimiento)
+    }))
+  }
+  if (periodicidad === 'anual') {
+    return [{ periodo: `${anio}-01-01`, fecha_vencimiento: computeFechaVencimiento(anio, 11, mesesDesfase, diaVencimiento) }]
+  }
+  return []
+}
+
 // ─── health / ambitos ──────────────────────────────────────────────────
 
 // GET /api/finanzas/health — verifies DB connectivity
@@ -1960,6 +2022,523 @@ finanzasRoutes.get('/saldo-calculado', async (c) => {
       params
     )
     return c.json({ cuentas: result.rows })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'query error' }, 500)
+  }
+})
+
+// ─── obligaciones (#743, capa de vigilancia sobre el flujo de caja) ─────
+// obligaciones = plantilla recurrente/puntual. obligaciones_instancias =
+// cada vencimiento concreto. El sistema NO aparta dinero ni mueve nada
+// solo: compara disponible vs pendientes y sugiere emparejamientos que
+// el usuario confirma. Nunca cubre una instancia sin POST .../cubrir.
+// Igual que en /movimientos, las lecturas se resuelven con JOINs propios
+// a ambitos/categorias en vez de confiar en las columnas exactas de
+// v_obligaciones_instancias (vista no comiteada en este repo).
+
+const OBLIGACION_COLS = `id, ambito_id, categoria_id, nombre, periodicidad, tipo_importe,
+  importe_referencia, moneda, dia_vencimiento, meses_desfase, activa, notas, created_at, updated_at`
+
+const INSTANCIA_COLS = `id, obligacion_id, TO_CHAR(periodo, 'YYYY-MM-DD') AS periodo,
+  TO_CHAR(fecha_vencimiento, 'YYYY-MM-DD') AS fecha_vencimiento,
+  importe_esperado, moneda, estado, movimiento_id, importe_real,
+  TO_CHAR(fecha_cubierta, 'YYYY-MM-DD') AS fecha_cubierta, notas, created_at, updated_at`
+
+// GET /api/finanzas/obligaciones?ambito_id= — plantillas con ámbito y categoría resueltos
+finanzasRoutes.get('/obligaciones', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const ambitoId = c.req.query('ambito_id')
+
+  const params: unknown[] = []
+  let where = ''
+  if (ambitoId !== undefined) {
+    if (!/^\d+$/.test(ambitoId)) return c.json({ error: 'ambito_id inválido' }, 400)
+    params.push(Number(ambitoId))
+    where = `WHERE o.ambito_id = $${params.length}`
+  }
+
+  try {
+    const result = await finanzasDb.query(
+      `SELECT o.id, o.ambito_id, o.categoria_id, o.nombre, o.periodicidad, o.tipo_importe,
+              o.importe_referencia, o.moneda, o.dia_vencimiento, o.meses_desfase, o.activa, o.notas,
+              o.created_at, o.updated_at,
+              a.nombre AS ambito_nombre, a.color AS ambito_color, a.orden AS ambito_orden,
+              cat.nombre AS categoria_nombre
+       FROM obligaciones o
+       JOIN ambitos a ON a.id = o.ambito_id
+       JOIN categorias cat ON cat.id = o.categoria_id
+       ${where}
+       ORDER BY a.orden, o.nombre`,
+      params
+    )
+    return c.json({ obligaciones: result.rows })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'query error' }, 500)
+  }
+})
+
+// POST /api/finanzas/obligaciones — crea la plantilla y, si es recurrente
+// (mensual/trimestral/anual), genera de golpe sus instancias del año en
+// curso. 'puntual' no genera nada: sus instancias se crean a mano.
+finanzasRoutes.post('/obligaciones', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Body inválido' }, 400)
+  const { ambito_id, categoria_id, nombre, periodicidad, tipo_importe, importe_referencia, dia_vencimiento, meses_desfase, notas } =
+    body as Record<string, unknown>
+
+  if (typeof ambito_id !== 'number' || !Number.isInteger(ambito_id)) return c.json({ error: 'ambito_id es obligatorio' }, 400)
+  if (typeof categoria_id !== 'number' || !Number.isInteger(categoria_id)) return c.json({ error: 'categoria_id es obligatorio' }, 400)
+  if (typeof nombre !== 'string' || nombre.trim() === '') return c.json({ error: 'nombre es obligatorio' }, 400)
+  if (!isPeriodicidadObligacion(periodicidad)) {
+    return c.json({ error: `periodicidad debe ser una de: ${PERIODICIDADES_OBLIGACION.join(', ')}` }, 400)
+  }
+  if (!isTipoImporteObligacion(tipo_importe)) {
+    return c.json({ error: `tipo_importe debe ser uno de: ${TIPOS_IMPORTE_OBLIGACION.join(', ')}` }, 400)
+  }
+
+  let importeReferenciaNum: number | null = null
+  if (importe_referencia !== undefined && importe_referencia !== null) {
+    importeReferenciaNum = parseNumeric(importe_referencia)
+    if (importeReferenciaNum === null || importeReferenciaNum <= 0) {
+      return c.json({ error: 'importe_referencia debe ser un número mayor que 0' }, 400)
+    }
+  }
+
+  let diaVencimientoNum: number | null = null
+  if (dia_vencimiento !== undefined && dia_vencimiento !== null) {
+    if (typeof dia_vencimiento !== 'number' || !Number.isInteger(dia_vencimiento) || dia_vencimiento < 1 || dia_vencimiento > 31) {
+      return c.json({ error: 'dia_vencimiento debe ser un entero entre 1 y 31' }, 400)
+    }
+    diaVencimientoNum = dia_vencimiento
+  }
+
+  let mesesDesfaseNum = 0
+  if (meses_desfase !== undefined && meses_desfase !== null) {
+    if (typeof meses_desfase !== 'number' || !Number.isInteger(meses_desfase)) return c.json({ error: 'meses_desfase debe ser un entero' }, 400)
+    mesesDesfaseNum = meses_desfase
+  }
+
+  if (notas !== undefined && notas !== null && typeof notas !== 'string') return c.json({ error: 'notas debe ser texto' }, 400)
+
+  try {
+    const ambitoExists = await finanzasDb.query('SELECT 1 FROM ambitos WHERE id = $1', [ambito_id])
+    if (ambitoExists.rowCount === 0) return c.json({ error: 'ambito_id no existe' }, 400)
+
+    const catResult = await finanzasDb.query('SELECT tipo FROM categorias WHERE id = $1', [categoria_id])
+    if (catResult.rowCount === 0) return c.json({ error: 'categoria_id no existe' }, 400)
+    const catTipo = catResult.rows[0].tipo as string
+    if (catTipo !== 'gasto' && catTipo !== 'ambos') {
+      return c.json({ error: 'Una obligación se vincula a una categoría de tipo gasto (o ambos)' }, 400)
+    }
+
+    const obligacionResult = await finanzasDb.query(
+      `INSERT INTO obligaciones (ambito_id, categoria_id, nombre, periodicidad, tipo_importe, importe_referencia, dia_vencimiento, meses_desfase, activa, notas)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9)
+       RETURNING ${OBLIGACION_COLS}`,
+      [ambito_id, categoria_id, nombre.trim(), periodicidad, tipo_importe, importeReferenciaNum, diaVencimientoNum, mesesDesfaseNum, notas ?? null]
+    )
+    const obligacion = obligacionResult.rows[0]
+
+    let instanciasCreadas = 0
+    if (periodicidad !== 'puntual') {
+      const anio = new Date().getUTCFullYear()
+      const periodos = generarInstanciasAnio(periodicidad, anio, mesesDesfaseNum, diaVencimientoNum)
+      for (const p of periodos) {
+        await finanzasDb.query(
+          `INSERT INTO obligaciones_instancias (obligacion_id, periodo, fecha_vencimiento, importe_esperado, estado)
+           VALUES ($1, $2, $3, $4, 'pendiente')
+           ON CONFLICT (obligacion_id, periodo) DO NOTHING`,
+          [obligacion.id, p.periodo, p.fecha_vencimiento, importeReferenciaNum]
+        )
+      }
+      instanciasCreadas = periodos.length
+    }
+
+    return c.json({ obligacion, instancias_creadas: instanciasCreadas }, 201)
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'insert error' }, 500)
+  }
+})
+
+// PATCH /api/finanzas/obligaciones/:id — nombre, importe_referencia,
+// dia_vencimiento, meses_desfase, activa, notas. periodicidad/tipo_importe/
+// ambito_id/categoria_id NO son editables (romperían las instancias ya
+// generadas). NO regenera instancias pasadas. Si cambia importe_referencia,
+// se propaga solo a las instancias aún 'pendiente' de este mes en adelante
+// — las pasadas o ya cubiertas/canceladas quedan como estaban.
+finanzasRoutes.patch('/obligaciones/:id', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const id = c.req.param('id')
+  if (!/^\d+$/.test(id)) return c.json({ error: 'id inválido' }, 400)
+
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Body inválido' }, 400)
+  const { nombre, importe_referencia, dia_vencimiento, meses_desfase, activa, notas } = body as Record<string, unknown>
+
+  const sets: string[] = []
+  const params: unknown[] = []
+  let nuevoImporteReferencia: number | null | undefined
+
+  if (nombre !== undefined) {
+    if (typeof nombre !== 'string' || nombre.trim() === '') return c.json({ error: 'nombre no puede estar vacío' }, 400)
+    params.push(nombre.trim())
+    sets.push(`nombre = $${params.length}`)
+  }
+  if (importe_referencia !== undefined) {
+    if (importe_referencia === null) {
+      nuevoImporteReferencia = null
+    } else {
+      const n = parseNumeric(importe_referencia)
+      if (n === null || n <= 0) return c.json({ error: 'importe_referencia debe ser un número mayor que 0' }, 400)
+      nuevoImporteReferencia = n
+    }
+    params.push(nuevoImporteReferencia)
+    sets.push(`importe_referencia = $${params.length}`)
+  }
+  if (dia_vencimiento !== undefined) {
+    if (dia_vencimiento !== null && (typeof dia_vencimiento !== 'number' || !Number.isInteger(dia_vencimiento) || dia_vencimiento < 1 || dia_vencimiento > 31)) {
+      return c.json({ error: 'dia_vencimiento debe ser un entero entre 1 y 31, o null' }, 400)
+    }
+    params.push(dia_vencimiento)
+    sets.push(`dia_vencimiento = $${params.length}`)
+  }
+  if (meses_desfase !== undefined) {
+    if (typeof meses_desfase !== 'number' || !Number.isInteger(meses_desfase)) return c.json({ error: 'meses_desfase debe ser un entero' }, 400)
+    params.push(meses_desfase)
+    sets.push(`meses_desfase = $${params.length}`)
+  }
+  if (activa !== undefined) {
+    if (typeof activa !== 'boolean') return c.json({ error: 'activa debe ser booleano' }, 400)
+    params.push(activa)
+    sets.push(`activa = $${params.length}`)
+  }
+  if (notas !== undefined) {
+    if (notas !== null && typeof notas !== 'string') return c.json({ error: 'notas debe ser texto' }, 400)
+    params.push(notas)
+    sets.push(`notas = $${params.length}`)
+  }
+
+  if (sets.length === 0) return c.json({ error: 'Nada que actualizar' }, 400)
+  sets.push('updated_at = now()')
+  params.push(id)
+
+  try {
+    const result = await finanzasDb.query(
+      `UPDATE obligaciones SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING ${OBLIGACION_COLS}`,
+      params
+    )
+    if (result.rowCount === 0) return c.json({ error: 'Obligación no encontrada' }, 404)
+
+    if (nuevoImporteReferencia !== undefined) {
+      await finanzasDb.query(
+        `UPDATE obligaciones_instancias
+         SET importe_esperado = $1, updated_at = now()
+         WHERE obligacion_id = $2 AND estado = 'pendiente' AND periodo >= date_trunc('month', now())::date`,
+        [nuevoImporteReferencia, id]
+      )
+    }
+
+    return c.json({ obligacion: result.rows[0] })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'update error' }, 500)
+  }
+})
+
+// GET /api/finanzas/obligaciones/instancias?ambito_id=&periodo=&estado=&desde=&hasta=
+// periodo = coincidencia exacta con el periodo (día 1 del mes/trimestre/año).
+// desde/hasta = rango sobre fecha_vencimiento (para "próximos vencimientos").
+finanzasRoutes.get('/obligaciones/instancias', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const ambitoId = c.req.query('ambito_id')
+  const periodo = c.req.query('periodo')
+  const estado = c.req.query('estado')
+  const desde = c.req.query('desde')
+  const hasta = c.req.query('hasta')
+
+  const conditions: string[] = []
+  const params: unknown[] = []
+
+  if (ambitoId !== undefined) {
+    if (!/^\d+$/.test(ambitoId)) return c.json({ error: 'ambito_id inválido' }, 400)
+    params.push(Number(ambitoId))
+    conditions.push(`a.id = $${params.length}`)
+  }
+  if (periodo !== undefined) {
+    if (!ISO_DATE_RE.test(periodo)) return c.json({ error: 'periodo debe tener formato YYYY-MM-DD (primer día del periodo)' }, 400)
+    params.push(periodo)
+    conditions.push(`i.periodo = $${params.length}`)
+  }
+  if (estado !== undefined) {
+    if (!isEstadoInstanciaObligacion(estado)) {
+      return c.json({ error: `estado debe ser uno de: ${ESTADOS_INSTANCIA_OBLIGACION.join(', ')}` }, 400)
+    }
+    params.push(estado)
+    conditions.push(`i.estado = $${params.length}`)
+  }
+  if (desde !== undefined) {
+    if (!ISO_DATE_RE.test(desde)) return c.json({ error: 'desde debe tener formato YYYY-MM-DD' }, 400)
+    params.push(desde)
+    conditions.push(`i.fecha_vencimiento >= $${params.length}`)
+  }
+  if (hasta !== undefined) {
+    if (!ISO_DATE_RE.test(hasta)) return c.json({ error: 'hasta debe tener formato YYYY-MM-DD' }, 400)
+    params.push(hasta)
+    conditions.push(`i.fecha_vencimiento <= $${params.length}`)
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+
+  try {
+    const result = await finanzasDb.query(
+      `SELECT i.id, i.obligacion_id, TO_CHAR(i.periodo, 'YYYY-MM-DD') AS periodo,
+              TO_CHAR(i.fecha_vencimiento, 'YYYY-MM-DD') AS fecha_vencimiento,
+              i.importe_esperado, i.moneda, i.estado, i.movimiento_id, i.importe_real,
+              TO_CHAR(i.fecha_cubierta, 'YYYY-MM-DD') AS fecha_cubierta, i.notas,
+              o.nombre AS obligacion_nombre, o.periodicidad, o.categoria_id, cat.nombre AS categoria_nombre,
+              a.id AS ambito_id, a.nombre AS ambito_nombre, a.color AS ambito_color, a.orden AS ambito_orden
+       FROM obligaciones_instancias i
+       JOIN obligaciones o ON o.id = i.obligacion_id
+       JOIN ambitos a ON a.id = o.ambito_id
+       JOIN categorias cat ON cat.id = o.categoria_id
+       ${where}
+       ORDER BY i.fecha_vencimiento, a.orden, o.nombre`,
+      params
+    )
+    return c.json({ instancias: result.rows })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'query error' }, 500)
+  }
+})
+
+// POST /api/finanzas/obligaciones/instancias — instancia manual (para
+// obligaciones 'puntual' o un vencimiento suelto fuera de lo generado).
+finanzasRoutes.post('/obligaciones/instancias', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Body inválido' }, 400)
+  const { obligacion_id, periodo, fecha_vencimiento, importe_esperado } = body as Record<string, unknown>
+
+  if (typeof obligacion_id !== 'number' || !Number.isInteger(obligacion_id)) return c.json({ error: 'obligacion_id es obligatorio' }, 400)
+  if (typeof periodo !== 'string' || !ISO_DATE_RE.test(periodo)) return c.json({ error: 'periodo debe tener formato YYYY-MM-DD' }, 400)
+  if (typeof fecha_vencimiento !== 'string' || !ISO_DATE_RE.test(fecha_vencimiento)) {
+    return c.json({ error: 'fecha_vencimiento debe tener formato YYYY-MM-DD' }, 400)
+  }
+
+  let importeEsperadoNum: number | null = null
+  if (importe_esperado !== undefined && importe_esperado !== null) {
+    importeEsperadoNum = parseNumeric(importe_esperado)
+    if (importeEsperadoNum === null || importeEsperadoNum <= 0) return c.json({ error: 'importe_esperado debe ser un número mayor que 0' }, 400)
+  }
+
+  try {
+    const oblExists = await finanzasDb.query('SELECT 1 FROM obligaciones WHERE id = $1', [obligacion_id])
+    if (oblExists.rowCount === 0) return c.json({ error: 'obligacion_id no existe' }, 400)
+
+    const result = await finanzasDb.query(
+      `INSERT INTO obligaciones_instancias (obligacion_id, periodo, fecha_vencimiento, importe_esperado, estado)
+       VALUES ($1, $2, $3, $4, 'pendiente')
+       RETURNING ${INSTANCIA_COLS}`,
+      [obligacion_id, periodo, fecha_vencimiento, importeEsperadoNum]
+    )
+    return c.json({ instancia: result.rows[0] }, 201)
+  } catch (err) {
+    if (isUniqueViolation(err)) return c.json({ error: 'Ya existe una instancia de esa obligación para ese periodo' }, 409)
+    return c.json({ error: err instanceof Error ? err.message : 'insert error' }, 500)
+  }
+})
+
+// PATCH /api/finanzas/obligaciones/instancias/:id — importe_esperado,
+// fecha_vencimiento, notas y estado ('pendiente'/'cancelada' solo — pasar
+// a 'cubierta' requiere movimiento_id y solo lo hace POST .../cubrir).
+finanzasRoutes.patch('/obligaciones/instancias/:id', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const id = c.req.param('id')
+  if (!/^\d+$/.test(id)) return c.json({ error: 'id inválido' }, 400)
+
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Body inválido' }, 400)
+  const { importe_esperado, fecha_vencimiento, estado, notas } = body as Record<string, unknown>
+
+  const sets: string[] = []
+  const params: unknown[] = []
+
+  if (importe_esperado !== undefined) {
+    if (importe_esperado === null) {
+      params.push(null)
+    } else {
+      const n = parseNumeric(importe_esperado)
+      if (n === null || n <= 0) return c.json({ error: 'importe_esperado debe ser un número mayor que 0' }, 400)
+      params.push(n)
+    }
+    sets.push(`importe_esperado = $${params.length}`)
+  }
+  if (fecha_vencimiento !== undefined) {
+    if (typeof fecha_vencimiento !== 'string' || !ISO_DATE_RE.test(fecha_vencimiento)) {
+      return c.json({ error: 'fecha_vencimiento debe tener formato YYYY-MM-DD' }, 400)
+    }
+    params.push(fecha_vencimiento)
+    sets.push(`fecha_vencimiento = $${params.length}`)
+  }
+  if (estado !== undefined) {
+    if (estado !== 'pendiente' && estado !== 'cancelada') {
+      return c.json({ error: `estado aquí solo admite 'pendiente' o 'cancelada' — para 'cubierta' usa /cubrir` }, 400)
+    }
+    params.push(estado)
+    sets.push(`estado = $${params.length}`)
+    sets.push(`movimiento_id = NULL`, `importe_real = NULL`, `fecha_cubierta = NULL`)
+  }
+  if (notas !== undefined) {
+    if (notas !== null && typeof notas !== 'string') return c.json({ error: 'notas debe ser texto' }, 400)
+    params.push(notas)
+    sets.push(`notas = $${params.length}`)
+  }
+
+  if (sets.length === 0) return c.json({ error: 'Nada que actualizar' }, 400)
+  sets.push('updated_at = now()')
+  params.push(id)
+
+  try {
+    const result = await finanzasDb.query(
+      `UPDATE obligaciones_instancias SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING ${INSTANCIA_COLS}`,
+      params
+    )
+    if (result.rowCount === 0) return c.json({ error: 'Instancia no encontrada' }, 404)
+    return c.json({ instancia: result.rows[0] })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'update error' }, 500)
+  }
+})
+
+// POST /api/finanzas/obligaciones/instancias/:id/cubrir — confirma el
+// emparejamiento. SIEMPRE requiere que el usuario mande movimiento_id;
+// nunca se cubre automáticamente. Al confirmar, aprende: actualiza
+// obligaciones.importe_referencia con el importe real (variaciones
+// mínimas, p.ej. la cuota de autónomo sube 2€).
+finanzasRoutes.post('/obligaciones/instancias/:id/cubrir', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const id = c.req.param('id')
+  if (!/^\d+$/.test(id)) return c.json({ error: 'id inválido' }, 400)
+
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Body inválido' }, 400)
+  const { movimiento_id } = body as Record<string, unknown>
+  if (typeof movimiento_id !== 'number' || !Number.isInteger(movimiento_id)) {
+    return c.json({ error: 'movimiento_id es obligatorio' }, 400)
+  }
+
+  try {
+    const instResult = await finanzasDb.query('SELECT id, obligacion_id, estado FROM obligaciones_instancias WHERE id = $1', [id])
+    if (instResult.rowCount === 0) return c.json({ error: 'Instancia no encontrada' }, 404)
+    const instancia = instResult.rows[0]
+    if (instancia.estado === 'cubierta') {
+      return c.json({ error: 'Esta instancia ya está cubierta — usa /descubrir primero si quieres cambiar el movimiento vinculado' }, 409)
+    }
+
+    const movResult = await finanzasDb.query('SELECT id, tipo, importe FROM movimientos_reales WHERE id = $1', [movimiento_id])
+    if (movResult.rowCount === 0) return c.json({ error: 'movimiento_id no existe' }, 400)
+    const mov = movResult.rows[0]
+    if (mov.tipo !== 'gasto') return c.json({ error: 'El movimiento debe ser un gasto' }, 400)
+
+    const yaEnlazado = await finanzasDb.query('SELECT id FROM obligaciones_instancias WHERE movimiento_id = $1 AND id <> $2', [movimiento_id, id])
+    if ((yaEnlazado.rowCount ?? 0) > 0) {
+      return c.json({ error: 'Ese movimiento ya cubre otra instancia — un mismo gasto no puede cubrir dos obligaciones' }, 409)
+    }
+
+    const importeReal = Math.abs(Number(mov.importe))
+
+    const updated = await finanzasDb.query(
+      `UPDATE obligaciones_instancias
+       SET estado = 'cubierta', movimiento_id = $1, importe_real = $2, fecha_cubierta = CURRENT_DATE, updated_at = now()
+       WHERE id = $3
+       RETURNING ${INSTANCIA_COLS}`,
+      [movimiento_id, importeReal, id]
+    )
+
+    await finanzasDb.query('UPDATE obligaciones SET importe_referencia = $1, updated_at = now() WHERE id = $2', [importeReal, instancia.obligacion_id])
+
+    return c.json({ instancia: updated.rows[0] })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'update error' }, 500)
+  }
+})
+
+// POST /api/finanzas/obligaciones/instancias/:id/descubrir — deshace el
+// emparejamiento y vuelve la instancia a 'pendiente'.
+finanzasRoutes.post('/obligaciones/instancias/:id/descubrir', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const id = c.req.param('id')
+  if (!/^\d+$/.test(id)) return c.json({ error: 'id inválido' }, 400)
+
+  try {
+    const result = await finanzasDb.query(
+      `UPDATE obligaciones_instancias
+       SET estado = 'pendiente', movimiento_id = NULL, importe_real = NULL, fecha_cubierta = NULL, updated_at = now()
+       WHERE id = $1
+       RETURNING ${INSTANCIA_COLS}`,
+      [id]
+    )
+    if (result.rowCount === 0) return c.json({ error: 'Instancia no encontrada' }, 404)
+    return c.json({ instancia: result.rows[0] })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'update error' }, 500)
+  }
+})
+
+// GET /api/finanzas/obligaciones/sugerencias?periodo= — para cada instancia
+// PENDIENTE de ese periodo, busca gastos reales de la categoría vinculada
+// con importe (en valor absoluto) dentro de ±10% del importe_esperado (o
+// cualquiera si no hay importe_esperado), que no estén ya enlazados a
+// ninguna otra instancia. El usuario confirma con /cubrir — esto solo sugiere.
+finanzasRoutes.get('/obligaciones/sugerencias', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const periodo = c.req.query('periodo')
+  if (periodo === undefined || !ISO_DATE_RE.test(periodo)) {
+    return c.json({ error: 'periodo es obligatorio, formato YYYY-MM-DD (primer día del periodo)' }, 400)
+  }
+
+  try {
+    const pendientes = await finanzasDb.query(
+      `SELECT i.id, i.obligacion_id, i.importe_esperado, o.categoria_id, o.ambito_id, o.nombre AS obligacion_nombre
+       FROM obligaciones_instancias i
+       JOIN obligaciones o ON o.id = i.obligacion_id
+       WHERE i.periodo = $1 AND i.estado = 'pendiente'`,
+      [periodo]
+    )
+
+    const sugerencias: unknown[] = []
+    for (const inst of pendientes.rows) {
+      const params: unknown[] = [inst.categoria_id]
+      let importeCond = ''
+      if (inst.importe_esperado !== null) {
+        const esperado = Number(inst.importe_esperado)
+        params.push(esperado * 0.9, esperado * 1.1)
+        importeCond = `AND ABS(m.importe) BETWEEN $${params.length - 1} AND $${params.length}`
+      }
+
+      const candidatos = await finanzasDb.query(
+        `SELECT m.id, m.cuenta_id, TO_CHAR(m.fecha, 'YYYY-MM-DD') AS fecha, m.importe, m.concepto, c.nombre AS cuenta_nombre
+         FROM movimientos_reales m
+         JOIN cuentas_financieras c ON c.id = m.cuenta_id
+         WHERE m.tipo = 'gasto' AND m.categoria_id = $1
+           ${importeCond}
+           AND NOT EXISTS (SELECT 1 FROM obligaciones_instancias oi WHERE oi.movimiento_id = m.id)
+         ORDER BY m.fecha DESC`,
+        params
+      )
+
+      if (candidatos.rows.length > 0) {
+        sugerencias.push({
+          instancia_id: inst.id,
+          obligacion_id: inst.obligacion_id,
+          obligacion_nombre: inst.obligacion_nombre,
+          importe_esperado: inst.importe_esperado,
+          candidatos: candidatos.rows
+        })
+      }
+    }
+
+    return c.json({ periodo, sugerencias })
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'query error' }, 500)
   }

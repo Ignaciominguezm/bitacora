@@ -6,8 +6,9 @@ import { RevisionSemanalView } from './finanzas/RevisionSemanalView'
 import { CategoriasView } from './finanzas/CategoriasView'
 import { TercerosView } from './finanzas/TercerosView'
 import { MovimientosView } from './finanzas/MovimientosView'
+import { ObligacionesView } from './finanzas/ObligacionesView'
 
-type View = 'dashboard' | 'cuentas' | 'revision' | 'categorias' | 'terceros' | 'movimientos'
+type View = 'dashboard' | 'cuentas' | 'revision' | 'categorias' | 'terceros' | 'movimientos' | 'obligaciones'
 
 const TABS: Array<{ id: View; label: string }> = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -15,7 +16,8 @@ const TABS: Array<{ id: View; label: string }> = [
   { id: 'revision', label: 'Revisión semanal' },
   { id: 'categorias', label: 'Categorías' },
   { id: 'terceros', label: 'Terceros' },
-  { id: 'movimientos', label: 'Movimientos' }
+  { id: 'movimientos', label: 'Movimientos' },
+  { id: 'obligaciones', label: 'Obligaciones' }
 ]
 
 export function FinanzasPage() {
@@ -71,6 +73,7 @@ export function FinanzasPage() {
       {view === 'categorias' && <CategoriasView />}
       {view === 'terceros' && <TercerosView ambitos={ambitos} />}
       {view === 'movimientos' && <MovimientosView ambitos={ambitos} />}
+      {view === 'obligaciones' && <ObligacionesView ambitos={ambitos} />}
     </div>
   )
 }

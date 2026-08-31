@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react'
 import type { CabinaSessionSummary } from '../../types/cabina'
 import { ACCENT, AMBITO_LABEL, MODO_LABEL, MUTED, TEXT, WARN } from './theme'
 
@@ -6,13 +7,15 @@ interface Props {
   activeId: string | null
   loading?: boolean
   onSelect: (id: string) => void
-  // 'active' (por defecto): botón "Nueva conversación" + acción Archivar.
-  // 'archived': sin "Nueva conversación", acciones Desarchivar y Borrar.
+  // 'active' (por defecto): botón "Nueva conversación" + acciones Renombrar
+  // y Archivar. 'archived': sin "Nueva conversación", acciones Desarchivar
+  // y Borrar — renombrar solo tiene sentido sobre conversaciones activas.
   variant?: 'active' | 'archived'
   onNew?: () => void
   onArchive?: (id: string) => void
   onUnarchive?: (id: string) => void
   onDelete?: (id: string) => void
+  onRename?: (id: string, title: string) => void
 }
 
 function fmtDate(iso: string) {
@@ -21,7 +24,32 @@ function fmtDate(iso: string) {
 
 const rowActionStyle = { background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', padding: '2px 4px', flexShrink: 0 } as const
 
-export function SessionList({ sessions, activeId, loading, onSelect, variant = 'active', onNew, onArchive, onUnarchive, onDelete }: Props) {
+export function SessionList({ sessions, activeId, loading, onSelect, variant = 'active', onNew, onArchive, onUnarchive, onDelete, onRename }: Props) {
+  // Una sola fila editable a la vez — el id en edición y su borrador de
+  // título. skipBlurRef evita que Escape (que cierra sin confirmar) dispare
+  // igualmente el confirmar-por-blur si el navegador emite un blur al
+  // desmontarse el input justo después.
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [draftTitle, setDraftTitle] = useState('')
+  const skipBlurRef = useRef(false)
+
+  function startEdit(s: CabinaSessionSummary) {
+    setEditingId(s.id)
+    setDraftTitle(s.title)
+  }
+
+  function confirmEdit() {
+    if (skipBlurRef.current) { skipBlurRef.current = false; return }
+    const trimmed = draftTitle.trim()
+    if (editingId && trimmed && onRename) onRename(editingId, trimmed)
+    setEditingId(null)
+  }
+
+  function cancelEdit() {
+    skipBlurRef.current = true
+    setEditingId(null)
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%' }}>
       {variant === 'active' && (
@@ -73,18 +101,44 @@ export function SessionList({ sessions, activeId, loading, onSelect, variant = '
                 }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontFamily: 'DM Sans, sans-serif',
-                      fontSize: 'var(--text-base)',
-                      color: TEXT,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    {s.title}
-                  </div>
+                  {editingId === s.id ? (
+                    <input
+                      autoFocus
+                      value={draftTitle}
+                      onChange={(e) => setDraftTitle(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') { e.preventDefault(); confirmEdit() }
+                        else if (e.key === 'Escape') { e.preventDefault(); cancelEdit() }
+                      }}
+                      onBlur={confirmEdit}
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        fontFamily: 'DM Sans, sans-serif',
+                        fontSize: 'var(--text-base)',
+                        color: TEXT,
+                        background: 'transparent',
+                        border: 'none',
+                        borderBottom: `1px solid ${ACCENT}60`,
+                        outline: 'none',
+                        padding: 0
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        fontFamily: 'DM Sans, sans-serif',
+                        fontSize: 'var(--text-base)',
+                        color: TEXT,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {s.title}
+                    </div>
+                  )}
                   <div
                     style={{
                       display: 'flex',
@@ -104,14 +158,27 @@ export function SessionList({ sessions, activeId, loading, onSelect, variant = '
                   </div>
                 </div>
 
-                {variant === 'active' && onArchive && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onArchive(s.id) }}
-                    title="Archivar conversación"
-                    style={{ ...rowActionStyle, color: MUTED }}
-                  >
-                    Archivar
-                  </button>
+                {variant === 'active' && editingId !== s.id && (
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                    {onRename && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); startEdit(s) }}
+                        title="Renombrar conversación"
+                        style={{ ...rowActionStyle, color: ACCENT }}
+                      >
+                        Renombrar
+                      </button>
+                    )}
+                    {onArchive && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onArchive(s.id) }}
+                        title="Archivar conversación"
+                        style={{ ...rowActionStyle, color: MUTED }}
+                      >
+                        Archivar
+                      </button>
+                    )}
+                  </div>
                 )}
 
                 {variant === 'archived' && (

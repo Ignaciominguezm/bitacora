@@ -384,19 +384,6 @@ function SaldoCalculadoPanel({ ambitos, onOpenApertura, refreshToken }: { ambito
                           <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#C8A840' }}>
                             = {eur(c.saldo_calculado)}
                           </span>
-                          {c.saldo_observado !== null && (
-                            <span
-                              style={{
-                                fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)',
-                                color: c.diferencia_conciliacion && Number(c.diferencia_conciliacion) !== 0 ? '#facc15' : 'var(--color-text-muted)'
-                              }}
-                            >
-                              observado {eur(c.saldo_observado)}
-                              {c.diferencia_conciliacion !== null && Number(c.diferencia_conciliacion) !== 0 && (
-                                <> · diferencia {eur(c.diferencia_conciliacion)}</>
-                              )}
-                            </span>
-                          )}
                         </div>
                       )}
                     </div>

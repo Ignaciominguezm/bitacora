@@ -1016,24 +1016,21 @@ finanzasRoutes.get('/dashboard', async (c) => {
   try {
     const [ambitosResult, cuentasResult, reservasResult, previstosResult, deudasResult, pendientesResult] = await Promise.all([
       finanzasDb.query('SELECT id, nombre, tipo, orden, color FROM ambitos ORDER BY orden'),
-      // Arrastre: saldo_total es "a fecha de la semana pedida", no siempre
-      // "el más reciente que exista". v_cuentas_saldo_actual (Pieza A, sin
-      // tocar) siempre da el último de todos los tiempos — coincide con
-      // esto solo cuando `semana` es la semana en curso. Aquí se ancla
-      // explícitamente a `semana` con la misma regla de arrastre que
-      // /revision/comparar: último snapshot <= semana, nunca 0 por falta
-      // de snapshot exacto.
+      // saldo_total ya NO sale del snapshot manual de saldos_semanales
+      // (v_cuentas_saldo_actual, #712) — ese método quedó obsoleto en
+      // cuanto el flujo de caja real (apertura + movimientos, #743 pieza
+      // 2A) empezó a alimentarse. Ahora se lee v_cuentas_saldo_calculado,
+      // que da saldo_calculado = apertura + Σ movimientos del año (NULL
+      // si la cuenta no tiene apertura registrada este año). Esto ya no
+      // depende de `semana` — es el saldo real vigente, no una foto
+      // semanal — así que la query no filtra por `semana` aquí.
       finanzasDb.query(
-        `SELECT c.id, c.ambito_id, c.nombre, c.tipo, c.entidad, c.moneda, s.saldo AS saldo_actual
+        `SELECT c.id, c.ambito_id, c.nombre, c.tipo, c.entidad, c.moneda,
+                v.saldo_calculado, v.requiere_saldo_apertura
          FROM cuentas_financieras c
-         LEFT JOIN LATERAL (
-           SELECT saldo FROM saldos_semanales
-           WHERE cuenta_id = c.id AND semana <= $1
-           ORDER BY semana DESC LIMIT 1
-         ) s ON true
+         JOIN v_cuentas_saldo_calculado v ON v.cuenta_id = c.id
          WHERE c.activa = true
-         ORDER BY c.nombre`,
-        [semana]
+         ORDER BY c.nombre`
       ),
       finanzasDb.query(
         `SELECT c.ambito_id, COALESCE(SUM(r.importe), 0) AS total
@@ -1079,7 +1076,18 @@ finanzasRoutes.get('/dashboard', async (c) => {
 
     const ambitos = ambitosResult.rows.map((amb) => {
       const cuentasAmbito = cuentasResult.rows.filter((cta) => cta.ambito_id === amb.id)
-      const saldo_total = cuentasAmbito.reduce((sum, cta) => sum + (cta.saldo_actual !== null ? Number(cta.saldo_actual) : 0), 0)
+
+      // saldo_calculado es NULL cuando la cuenta no tiene saldo de apertura
+      // del año — nunca se convierte en 0 al sumar (daría un saldo de
+      // ámbito falso). Se suman solo las cuentas con dato y se avisa de
+      // las que faltan, en vez de esconder el problema tras un número
+      // aparentemente completo.
+      const cuentasSinApertura = cuentasAmbito.filter((cta) => cta.saldo_calculado === null)
+      const saldo_total = cuentasAmbito.reduce(
+        (sum, cta) => sum + (cta.saldo_calculado !== null ? Number(cta.saldo_calculado) : 0),
+        0
+      )
+      const saldo_incompleto = cuentasSinApertura.length > 0
 
       const reservaRow = reservasResult.rows.find((r) => r.ambito_id === amb.id)
       const reservas_activas = reservaRow ? Number(reservaRow.total) : 0
@@ -1124,9 +1132,12 @@ finanzasRoutes.get('/dashboard', async (c) => {
           nombre: cta.nombre,
           tipo: cta.tipo,
           entidad: cta.entidad,
-          saldo_actual: cta.saldo_actual
+          saldo_calculado: cta.saldo_calculado,
+          requiere_saldo_apertura: cta.requiere_saldo_apertura
         })),
         saldo_total,
+        saldo_incompleto,
+        cuentas_sin_apertura: cuentasSinApertura.map((cta) => ({ id: cta.id, nombre: cta.nombre })),
         reservas_activas,
         disponible_tras_reservas,
         pagos_proximos_30d,

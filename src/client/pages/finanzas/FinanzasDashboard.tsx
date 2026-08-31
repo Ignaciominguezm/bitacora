@@ -6,7 +6,13 @@ interface CuentaResumen {
   nombre: string
   tipo: 'banco' | 'efectivo' | 'otro'
   entidad: string | null
-  saldo_actual: string | null
+  saldo_calculado: string | null
+  requiere_saldo_apertura: boolean
+}
+
+interface CuentaSinApertura {
+  id: number
+  nombre: string
 }
 
 interface VencItem {
@@ -25,6 +31,8 @@ interface AmbitoDashboard {
   orden: number
   cuentas: CuentaResumen[]
   saldo_total: number
+  saldo_incompleto: boolean
+  cuentas_sin_apertura: CuentaSinApertura[]
   reservas_activas: number
   disponible_tras_reservas: number
   pagos_proximos_30d: number
@@ -229,6 +237,22 @@ function AmbitoCard({ amb }: { amb: AmbitoDashboard }) {
           <Stat label="RESERVAS ACTIVAS" value={eur(amb.reservas_activas)} />
         </div>
 
+        {amb.saldo_incompleto && (
+          <div
+            style={{
+              fontFamily: 'JetBrains Mono, monospace',
+              fontSize: 'var(--text-xs)',
+              color: '#facc15',
+              border: '1px solid rgba(250,204,21,0.35)',
+              padding: '6px 10px'
+            }}
+          >
+            ⚠ Saldo incompleto: {amb.cuentas_sin_apertura.length} cuenta{amb.cuentas_sin_apertura.length !== 1 ? 's' : ''} sin saldo de apertura
+            {' — '}
+            {amb.cuentas_sin_apertura.map((c) => c.nombre).join(', ')}. El total de arriba NO las incluye.
+          </div>
+        )}
+
         {/* Efectivo, si existe cuenta de ese tipo en el ámbito */}
         {efectivo.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 10, borderLeft: '2px solid rgba(200,168,64,0.15)' }}>
@@ -239,7 +263,7 @@ function AmbitoCard({ amb }: { amb: AmbitoDashboard }) {
               <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, maxWidth: 320 }}>
                 <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-sm)', color: '#A09070' }}>{c.nombre}</span>
                 <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#E8DCC8' }}>
-                  {c.saldo_actual === null ? 'sin saldo' : eur(Number(c.saldo_actual))}
+                  {c.saldo_calculado === null ? 'sin apertura' : eur(Number(c.saldo_calculado))}
                 </span>
               </div>
             ))}

@@ -136,6 +136,14 @@ export function MovimientosView({ ambitos }: { ambitos: Ambito[] }) {
 
   const [filtros, setFiltros] = useState({ ambito_id: '', cuenta_id: '', tipo: '', desde: '', hasta: '' })
 
+  // SaldoCalculadoPanel se recalcula en el servidor a partir de apertura +
+  // movimientos, pero vive como componente hermano con su propio fetch: no
+  // se entera solo de que un movimiento o una apertura cambiaron. Este
+  // contador se incrementa tras cada mutación relevante y viaja como prop
+  // para forzar su refetch sin recargar la página ni sacar al usuario de la vista.
+  const [saldoRefreshToken, setSaldoRefreshToken] = useState(0)
+  const bumpSaldoRefresh = useCallback(() => setSaldoRefreshToken((t) => t + 1), [])
+
   const fetchCuentas = useCallback(async () => {
     try {
       const res = await fetch('/api/finanzas/cuentas', { credentials: 'include' })
@@ -179,6 +187,7 @@ export function MovimientosView({ ambitos }: { ambitos: Ambito[] }) {
       const res = await fetch(`/api/finanzas/movimientos/${m.id}`, { method: 'DELETE', credentials: 'include' })
       if (res.ok) {
         await fetchMovimientos()
+        bumpSaldoRefresh()
       } else {
         const data = await res.json().catch(() => ({}))
         window.alert(data.error ?? 'No se pudo borrar')
@@ -190,7 +199,7 @@ export function MovimientosView({ ambitos }: { ambitos: Ambito[] }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <SaldoCalculadoPanel ambitos={ambitos} onOpenApertura={() => setShowApertura(true)} />
+      <SaldoCalculadoPanel ambitos={ambitos} onOpenApertura={() => setShowApertura(true)} refreshToken={saldoRefreshToken} />
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -233,7 +242,7 @@ export function MovimientosView({ ambitos }: { ambitos: Ambito[] }) {
         </div>
       )}
 
-      {showApertura && <AperturaModal ambitos={ambitos} onClose={() => setShowApertura(false)} />}
+      {showApertura && <AperturaModal ambitos={ambitos} onClose={() => setShowApertura(false)} onSaved={bumpSaldoRefresh} />}
 
       {showForm && (
         <MovimientoFormModal
@@ -245,6 +254,7 @@ export function MovimientosView({ ambitos }: { ambitos: Ambito[] }) {
           onSaved={() => {
             setShowForm(null)
             fetchMovimientos()
+            bumpSaldoRefresh()
           }}
         />
       )}
@@ -311,7 +321,7 @@ function MovimientoRow({ m, onEdit, onDelete }: { m: Movimiento; onEdit: () => v
   )
 }
 
-function SaldoCalculadoPanel({ ambitos, onOpenApertura }: { ambitos: Ambito[]; onOpenApertura: () => void }) {
+function SaldoCalculadoPanel({ ambitos, onOpenApertura, refreshToken }: { ambitos: Ambito[]; onOpenApertura: () => void; refreshToken: number }) {
   const [cuentas, setCuentas] = useState<SaldoCalculadoCuenta[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -329,7 +339,7 @@ function SaldoCalculadoPanel({ ambitos, onOpenApertura }: { ambitos: Ambito[]; o
 
   useEffect(() => {
     fetchSaldos()
-  }, [fetchSaldos])
+  }, [fetchSaldos, refreshToken])
 
   return (
     <section style={{ background: '#13100A', border: '1px solid rgba(200,168,64,0.15)' }}>
@@ -374,19 +384,6 @@ function SaldoCalculadoPanel({ ambitos, onOpenApertura }: { ambitos: Ambito[]; o
                           <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#C8A840' }}>
                             = {eur(c.saldo_calculado)}
                           </span>
-                          {c.saldo_observado !== null && (
-                            <span
-                              style={{
-                                fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)',
-                                color: c.diferencia_conciliacion && Number(c.diferencia_conciliacion) !== 0 ? '#facc15' : 'var(--color-text-muted)'
-                              }}
-                            >
-                              observado {eur(c.saldo_observado)}
-                              {c.diferencia_conciliacion !== null && Number(c.diferencia_conciliacion) !== 0 && (
-                                <> · diferencia {eur(c.diferencia_conciliacion)}</>
-                              )}
-                            </span>
-                          )}
                         </div>
                       )}
                     </div>
@@ -401,7 +398,7 @@ function SaldoCalculadoPanel({ ambitos, onOpenApertura }: { ambitos: Ambito[]; o
   )
 }
 
-function AperturaModal({ ambitos, onClose }: { ambitos: Ambito[]; onClose: () => void }) {
+function AperturaModal({ ambitos, onClose, onSaved }: { ambitos: Ambito[]; onClose: () => void; onSaved: () => void }) {
   const anio = new Date().getFullYear()
   const [cuentas, setCuentas] = useState<AperturaCuenta[]>([])
   const [inputs, setInputs] = useState<Record<number, string>>({})
@@ -448,6 +445,7 @@ function AperturaModal({ ambitos, onClose }: { ambitos: Ambito[]; onClose: () =>
       })
       if (res.ok) {
         await fetchApertura()
+        onSaved()
       } else {
         const data = await res.json().catch(() => ({}))
         setErrors((prev) => ({ ...prev, [cuentaId]: data.error ?? 'Error al guardar' }))

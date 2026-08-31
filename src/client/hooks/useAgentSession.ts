@@ -190,11 +190,14 @@ export function useAgentSession() {
     } catch { /* no crítico — el título/orden local sigue siendo razonable */ }
   }
 
-  async function renameSession(newTitle: string) {
+  // Recibe el id explícito porque se renombra desde la lista (cualquier
+  // fila, no solo la activa) — activeIdRef solo decide si además hay que
+  // refrescar el título mostrado en el panel de contexto.
+  async function renameSession(id: string, newTitle: string) {
     const trimmed = newTitle.trim()
-    if (!trimmed || !activeId) return
+    if (!trimmed) return
     try {
-      const res = await fetch(`/api/cabina/session/${activeId}`, {
+      const res = await fetch(`/api/cabina/session/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -202,8 +205,8 @@ export function useAgentSession() {
       })
       if (!res.ok) throw new Error('rename failed')
       const data: CabinaSessionSummary = await res.json()
-      setTitle(data.title)
       setSessions((prev) => prev.map((s) => (s.id === data.id ? data : s)))
+      if (activeIdRef.current === data.id) setTitle(data.title)
     } catch {
       setError('No se pudo renombrar la conversación')
     }

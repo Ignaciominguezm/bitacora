@@ -1787,12 +1787,33 @@ finanzasRoutes.get('/movimientos', async (c) => {
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
 
   try {
+    // saldo_acumulado: cómo queda la cuenta tras cada apunte, calculado en
+    // orden cronológico real (fecha, luego id) sobre TODOS los movimientos
+    // de esa cuenta/año — no solo los que pasan los filtros de arriba, ni
+    // en el orden en que se muestra la lista (que es fecha DESC). Apertura
+    // y suma se anclan al año del propio movimiento (igual que
+    // v_cuentas_saldo_calculado, generalizado por si hay datos de más de
+    // un año): si esa cuenta no tiene apertura de ese año, NULL + suma =
+    // NULL (nunca un número falso) y el frontend lo pinta como "—".
     const result = await finanzasDb.query(
-      `SELECT v.*, TO_CHAR(v.fecha, 'YYYY-MM-DD') AS fecha,
-              a.id AS ambito_id, a.nombre AS ambito_nombre, a.color AS ambito_color, a.orden AS ambito_orden
+      `WITH acumulado AS (
+         SELECT m.id,
+                sa.saldo + SUM(m.importe) OVER (
+                  PARTITION BY m.cuenta_id, EXTRACT(YEAR FROM m.fecha)
+                  ORDER BY m.fecha, m.id
+                  ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) AS saldo_acumulado
+         FROM movimientos_reales m
+         LEFT JOIN saldos_apertura sa
+           ON sa.cuenta_id = m.cuenta_id AND sa.anio = EXTRACT(YEAR FROM m.fecha)::smallint
+       )
+       SELECT v.*, TO_CHAR(v.fecha, 'YYYY-MM-DD') AS fecha,
+              a.id AS ambito_id, a.nombre AS ambito_nombre, a.color AS ambito_color, a.orden AS ambito_orden,
+              ac.saldo_acumulado
        FROM v_movimientos_reales v
        JOIN cuentas_financieras cf ON cf.id = v.cuenta_id
        JOIN ambitos a ON a.id = cf.ambito_id
+       LEFT JOIN acumulado ac ON ac.id = v.id
        ${where}
        ORDER BY v.fecha DESC, v.id DESC
        LIMIT ${limit} OFFSET ${offset}`,

@@ -54,6 +54,10 @@ interface Movimiento {
   cuenta_nombre?: string
   categoria_nombre?: string
   tercero_nombre?: string
+  // Saldo de la cuenta tras este apunte (apertura del año + movimientos de
+  // esa cuenta hasta este, por fecha/id). null si la cuenta no tiene
+  // apertura de ese año — nunca un número falso.
+  saldo_acumulado: string | null
 }
 
 // Un traspaso interno son DOS filas de movimientos_reales (misma
@@ -376,6 +380,16 @@ export function MovimientosView({ ambitos }: { ambitos: Ambito[] }) {
   )
 }
 
+// Saldo de la cuenta tras ese apunte — se distingue del importe del
+// movimiento por color muted, tamaño menor y la etiqueta "saldo".
+function SaldoAcumuladoTag({ saldo }: { saldo: string | null }) {
+  return (
+    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)' }} title="Saldo de la cuenta tras este movimiento">
+      saldo {saldo === null ? '—' : eur(saldo)}
+    </span>
+  )
+}
+
 function MovimientoRow({ m, onEdit, onDelete }: { m: Movimiento; onEdit: () => void; onDelete: () => void }) {
   const importeNum = Number(m.importe)
   const positivo = importeNum >= 0
@@ -422,6 +436,7 @@ function MovimientoRow({ m, onEdit, onDelete }: { m: Movimiento; onEdit: () => v
         <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)', color: positivo ? '#4ade80' : '#f87171' }}>
           {positivo ? '+' : ''}{eur(m.importe)}
         </span>
+        <SaldoAcumuladoTag saldo={m.saldo_acumulado} />
         {!esTraspaso ? (
           <>
             <button onClick={onEdit} style={{ ...smallBtn, border: 'none', padding: 2 }}>Editar</button>
@@ -457,7 +472,7 @@ function TraspasoInternoRow({ salida, entrada, onEdit, onDelete }: { salida: Mov
           Traspaso interno
         </span>
         <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-sm)', color: '#E8DCC8' }}>
-          {salida.cuenta_nombre ?? '—'} → {entrada.cuenta_nombre ?? '—'}
+          {salida.cuenta_nombre ?? '—'} <SaldoAcumuladoTag saldo={salida.saldo_acumulado} /> → {entrada.cuenta_nombre ?? '—'} <SaldoAcumuladoTag saldo={entrada.saldo_acumulado} />
         </span>
         {salida.concepto && (
           <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)' }}>· {salida.concepto}</span>
@@ -502,6 +517,7 @@ function TraspasoExternoRow({ m, onEdit, onDelete }: { m: Movimiento; onEdit: ()
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
         <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)', color: '#f87171' }}>{eur(m.importe)}</span>
+        <SaldoAcumuladoTag saldo={m.saldo_acumulado} />
         <button onClick={onEdit} style={{ ...smallBtn, border: 'none', padding: 2 }}>Editar</button>
         <button onClick={onDelete} style={{ ...smallBtn, border: 'none', padding: 2, color: '#f87171' }}>Borrar</button>
       </div>

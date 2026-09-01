@@ -34,7 +34,7 @@ export function MessageInput({ value, onChange, onSend, disabled, placeholder }:
           border: `1px solid ${ACCENT}30`,
           color: TEXT,
           fontFamily: 'DM Sans, sans-serif',
-          fontSize: 13,
+          fontSize: 'var(--text-md)',
           outline: 'none',
           resize: 'none',
           minHeight: 36,

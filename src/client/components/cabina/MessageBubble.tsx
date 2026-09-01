@@ -27,7 +27,7 @@ export function MessageBubble({ message, streaming, onReload }: Props) {
             isUser ? ACCENT + '40' : message.incomplete ? WARN_BORDER : ACCENT + '18'
           }`,
           fontFamily: 'DM Sans, sans-serif',
-          fontSize: 13,
+          fontSize: 'var(--text-md)',
           color: TEXT,
           lineHeight: 1.5,
           wordBreak: 'break-word'
@@ -37,7 +37,7 @@ export function MessageBubble({ message, streaming, onReload }: Props) {
           <div
             style={{
               fontFamily: 'JetBrains Mono, monospace',
-              fontSize: 9,
+              fontSize: 'var(--text-2xs)',
               color: MUTED,
               letterSpacing: '0.05em',
               marginBottom: 4
@@ -73,7 +73,7 @@ export function MessageBubble({ message, streaming, onReload }: Props) {
               flexWrap: 'wrap'
             }}
           >
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: WARN, lineHeight: 1.4 }}>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: WARN, lineHeight: 1.4 }}>
               Se cortó la conexión mientras llegaba esta respuesta. Es casi seguro que ya quedó guardada completa
               en el servidor.
             </span>
@@ -85,7 +85,7 @@ export function MessageBubble({ message, streaming, onReload }: Props) {
                   border: `1px solid ${WARN_BORDER}`,
                   color: WARN,
                   fontFamily: 'JetBrains Mono, monospace',
-                  fontSize: 10,
+                  fontSize: 'var(--text-xs)',
                   padding: '3px 8px',
                   cursor: 'pointer',
                   letterSpacing: '0.04em',

@@ -5,22 +5,24 @@ import { MessageInput } from '../components/cabina/MessageInput'
 import { SessionList } from '../components/cabina/SessionList'
 import { ScopeSelector } from '../components/cabina/ScopeSelector'
 import { ModeSelector } from '../components/cabina/ModeSelector'
+import { ApprovalCard } from '../components/cabina/ApprovalCard'
 import { ACCENT, MUTED, TEXT } from '../components/cabina/theme'
 
 // Huecos reservados en el layout para entregas futuras — sin funcionalidad
 // todavía. Solo el sitio y el rótulo; nada que construir aquí en esta fase.
-const FUTURE_SECTIONS = ['Decisiones', 'Memoria', 'Tareas CoreWork', 'Adjuntos', 'Zona de aprobación']
+// "Zona de aprobación" salió de aquí en #723-MVP: ya es real (ApprovalCard).
+const FUTURE_SECTIONS = ['Decisiones', 'Memoria', 'Tareas CoreWork', 'Adjuntos']
 
 function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: MUTED, letterSpacing: '0.05em', marginBottom: 2 }}>
+      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: MUTED, letterSpacing: '0.05em', marginBottom: 2 }}>
         {label.toUpperCase()}
       </div>
       <div
         style={{
           fontFamily: mono ? 'JetBrains Mono, monospace' : 'DM Sans, sans-serif',
-          fontSize: mono ? 11 : 13,
+          fontSize: mono ? 'var(--text-sm)' : 'var(--text-md)',
           color: TEXT,
           wordBreak: 'break-all'
         }}
@@ -34,6 +36,8 @@ function InfoRow({ label, value, mono }: { label: string; value: string; mono?: 
 export function CabinaUnriaPage() {
   const {
     sessions,
+    archivedSessions,
+    viewArchived,
     loadingHistory,
     activeId,
     ambito,
@@ -41,16 +45,30 @@ export function CabinaUnriaPage() {
     title,
     messages,
     streaming,
+    sessionProcessing,
+    approvals,
     error,
     setAmbito,
     setModo,
     selectSession,
     newSession,
-    sendMessage
+    sendMessage,
+    setArchivedView,
+    archiveSession,
+    unarchiveSession,
+    deleteSession,
+    renameSession,
+    approveAction,
+    rejectAction
   } = useAgentSession()
 
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  // Colapso de columnas laterales para trabajar a media pantalla — solo en
+  // memoria (sin localStorage), independiente cada una. La columna central
+  // ya es flex:1, así que se expande sola al colapsar cualquiera de las dos.
+  const [leftCollapsed, setLeftCollapsed] = useState(false)
+  const [rightCollapsed, setRightCollapsed] = useState(false)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -74,10 +92,96 @@ export function CabinaUnriaPage() {
 
   return (
     <div style={{ flex: 1, display: 'flex', overflow: 'hidden', background: '#0D0A06' }}>
-      {/* Columna izquierda — historial de sesiones */}
-      <div style={{ width: 260, flexShrink: 0, borderRight: `1px solid ${ACCENT}15`, overflow: 'hidden' }}>
-        <SessionList sessions={sessions} activeId={activeId} loading={loadingHistory} onSelect={selectSession} onNew={newSession} />
-      </div>
+      {/* Columna izquierda — historial de sesiones. Colapsable a una franja
+          fina con un botón (siempre visible) para volver a expandirla. */}
+      {leftCollapsed ? (
+        <button
+          onClick={() => setLeftCollapsed(false)}
+          title="Mostrar conversaciones"
+          style={{
+            width: 24,
+            flexShrink: 0,
+            background: 'transparent',
+            border: 'none',
+            borderRight: `1px solid ${ACCENT}15`,
+            color: MUTED,
+            fontFamily: 'JetBrains Mono, monospace',
+            fontSize: 'var(--text-sm)',
+            cursor: 'pointer'
+          }}
+        >
+          ›
+        </button>
+      ) : (
+        <div style={{ width: 260, flexShrink: 0, borderRight: `1px solid ${ACCENT}15`, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', alignItems: 'center', borderBottom: `1px solid ${ACCENT}10`, flexShrink: 0 }}>
+            {(['activas', 'archivadas'] as const).map((tab) => {
+              const isArchivedTab = tab === 'archivadas'
+              const tabActive = viewArchived === isArchivedTab
+              return (
+                <button
+                  key={tab}
+                  onClick={() => void setArchivedView(isArchivedTab)}
+                  style={{
+                    flex: 1,
+                    padding: '8px 0',
+                    background: 'transparent',
+                    border: 'none',
+                    borderBottom: `2px solid ${tabActive ? ACCENT : 'transparent'}`,
+                    color: tabActive ? ACCENT : MUTED,
+                    fontFamily: 'JetBrains Mono, monospace',
+                    fontSize: 'var(--text-2xs)',
+                    letterSpacing: '0.05em',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {tab.toUpperCase()}
+                </button>
+              )
+            })}
+            <button
+              onClick={() => setLeftCollapsed(true)}
+              title="Ocultar conversaciones"
+              style={{
+                flexShrink: 0,
+                alignSelf: 'stretch',
+                padding: '0 8px',
+                background: 'transparent',
+                border: 'none',
+                borderLeft: `1px solid ${ACCENT}10`,
+                color: MUTED,
+                fontFamily: 'JetBrains Mono, monospace',
+                fontSize: 'var(--text-sm)',
+                cursor: 'pointer'
+              }}
+            >
+              ‹
+            </button>
+          </div>
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            {viewArchived ? (
+              <SessionList
+                sessions={archivedSessions}
+                activeId={activeId}
+                onSelect={selectSession}
+                variant="archived"
+                onUnarchive={unarchiveSession}
+                onDelete={deleteSession}
+              />
+            ) : (
+              <SessionList
+                sessions={sessions}
+                activeId={activeId}
+                loading={loadingHistory}
+                onSelect={selectSession}
+                onNew={newSession}
+                onArchive={archiveSession}
+                onRename={renameSession}
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Columna central — la conversación */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -91,7 +195,7 @@ export function CabinaUnriaPage() {
                 justifyContent: 'center',
                 color: MUTED,
                 fontFamily: 'JetBrains Mono, monospace',
-                fontSize: 12,
+                fontSize: 'var(--text-base)',
                 textAlign: 'center'
               }}
             >
@@ -106,60 +210,110 @@ export function CabinaUnriaPage() {
               onReload={m.incomplete ? handleReload : undefined}
             />
           ))}
+          {approvals.map((a) => (
+            <ApprovalCard key={a.id} approval={a} onApprove={approveAction} onReject={rejectAction} />
+          ))}
           <div ref={messagesEndRef} />
         </div>
 
+        {sessionProcessing && !streaming && (
+          <div style={{ padding: '4px 20px', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: MUTED }}>
+            Unria sigue pensando en esta conversación...
+          </div>
+        )}
+
         {error && (
-          <div style={{ padding: '4px 20px', fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#F87171' }}>
+          <div style={{ padding: '4px 20px', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#F87171' }}>
             {error}
           </div>
         )}
 
-        <MessageInput value={input} onChange={setInput} onSend={handleSend} disabled={streaming} placeholder="Mensaje a Unria..." />
+        <MessageInput value={input} onChange={setInput} onSend={handleSend} disabled={streaming || sessionProcessing} placeholder="Mensaje a Unria..." />
       </div>
 
       {/* Columna derecha — panel de contexto, persistente. La conversación
           con su contexto al lado: esto es lo que distingue Cabina de un
-          chat con desplegables arriba. */}
-      <div style={{ width: 300, flexShrink: 0, borderLeft: `1px solid ${ACCENT}15`, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '14px 16px', borderBottom: `1px solid ${ACCENT}12` }}>
-          <div style={{ fontFamily: 'Cinzel, serif', fontSize: 11, color: ACCENT, letterSpacing: '0.08em', marginBottom: 14 }}>
-            CONTEXTO
-          </div>
-
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: MUTED, letterSpacing: '0.05em', marginBottom: 5 }}>
-              ÁMBITO
-            </div>
-            <ScopeSelector value={ambito} onChange={setAmbito} disabled={streaming} />
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: MUTED, letterSpacing: '0.05em', marginBottom: 5 }}>
-              MODO
-            </div>
-            <ModeSelector value={modo} onChange={setModo} disabled={streaming} />
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <InfoRow label="Título" value={activeId ? title : '—'} />
-            <InfoRow label="Mensajes" value={String(messages.length)} />
-            <InfoRow label="Sesión" value={activeId ?? '—'} mono />
-          </div>
-        </div>
-
-        {/* Huecos reservados — sin funcionalidad en esta entrega */}
-        <div style={{ padding: '4px 16px 16px' }}>
-          {FUTURE_SECTIONS.map((label) => (
-            <div key={label} style={{ padding: '10px 0', borderTop: `1px solid ${ACCENT}0c` }}>
-              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: MUTED, letterSpacing: '0.05em' }}>
-                {label.toUpperCase()}
+          chat con desplegables arriba. Colapsable igual que la izquierda. */}
+      {rightCollapsed ? (
+        <button
+          onClick={() => setRightCollapsed(false)}
+          title="Mostrar contexto"
+          style={{
+            width: 24,
+            flexShrink: 0,
+            background: 'transparent',
+            border: 'none',
+            borderLeft: `1px solid ${ACCENT}15`,
+            color: MUTED,
+            fontFamily: 'JetBrains Mono, monospace',
+            fontSize: 'var(--text-sm)',
+            cursor: 'pointer'
+          }}
+        >
+          ‹
+        </button>
+      ) : (
+        <div style={{ width: 300, flexShrink: 0, borderLeft: `1px solid ${ACCENT}15`, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '14px 16px', borderBottom: `1px solid ${ACCENT}12` }}>
+            {/* El botón va junto al rótulo, no al extremo derecho: la
+                barra fija de campana/ajustes (NotificationCenter, top:12
+                right:16) ocupa esa esquina en toda la app y taparía un
+                botón pegado al borde. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+              <button
+                onClick={() => setRightCollapsed(true)}
+                title="Ocultar contexto"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: MUTED,
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: 'var(--text-sm)',
+                  cursor: 'pointer',
+                  padding: '0 2px'
+                }}
+              >
+                ›
+              </button>
+              <div style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-sm)', color: ACCENT, letterSpacing: '0.08em' }}>
+                CONTEXTO
               </div>
-              {/* Reservado para una entrega futura. */}
             </div>
-          ))}
+
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: MUTED, letterSpacing: '0.05em', marginBottom: 5 }}>
+                ÁMBITO
+              </div>
+              <ScopeSelector value={ambito} onChange={setAmbito} disabled={streaming} />
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: MUTED, letterSpacing: '0.05em', marginBottom: 5 }}>
+                MODO
+              </div>
+              <ModeSelector value={modo} onChange={setModo} disabled={streaming} />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <InfoRow label="Título" value={activeId ? title : '—'} />
+              <InfoRow label="Mensajes" value={String(messages.length)} />
+              <InfoRow label="Sesión" value={activeId ?? '—'} mono />
+            </div>
+          </div>
+
+          {/* Huecos reservados — sin funcionalidad en esta entrega */}
+          <div style={{ padding: '4px 16px 16px' }}>
+            {FUTURE_SECTIONS.map((label) => (
+              <div key={label} style={{ padding: '10px 0', borderTop: `1px solid ${ACCENT}0c` }}>
+                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: MUTED, letterSpacing: '0.05em' }}>
+                  {label.toUpperCase()}
+                </div>
+                {/* Reservado para una entrega futura. */}
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

@@ -1,5 +1,6 @@
-import type { AgentContext, AgentGateway, AgentMessage, AgentSessionRef } from './types.js'
+import type { AgentContext, AgentGateway, AgentSessionRef } from './types.js'
 import { buildPrompt } from './prompt.js'
+import { buildCabinaContextPack } from './contextPack.js'
 
 const OPENCLAW_GATEWAY_URL = process.env.OPENCLAW_GATEWAY_URL || 'https://imm-guarida.tailf37d92.ts.net'
 const OPENCLAW_GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN
@@ -9,12 +10,13 @@ const OPENCLAW_TIMEOUT_SECONDS = Number.parseInt(process.env.OPENCLAW_TIMEOUT_SE
 // contra el gateway — session/sessionKey/conversation/conversation_id dan
 // 400, metadata.session y previous_response_id se aceptan pero no aíslan
 // nada), así que la continuidad por hilo la aporta Cabina metiendo contexto
-// en el propio input, no la API. 10 mensajes (~5 intercambios) es una
-// fracción modesta frente a lo que ya cuesta la memoria propia de Unria
-// (700–12.800 input_tokens observados solo por eso en el sondeo, y
-// creciendo) — suficiente para mantener coherente el hilo reciente sin
-// competir con ese coste.
-const HISTORY_MESSAGE_LIMIT = Number.parseInt(process.env.OPENCLAW_HISTORY_MESSAGES || '10', 10)
+// en el propio input, no la API. 40 mensajes (~20 intercambios) es el
+// mínimo cómodo para trabajar en desarrollo sin notar el corte de la
+// ventana en cada turno; lo que quede fuera de la ventana ya no se pierde,
+// summarizer.ts lo incorpora al resumen incremental antes de que salga de
+// aquí. Exportado porque summarizer.ts necesita el mismo valor para saber
+// qué mensajes están "a punto de salir de la ventana".
+export const HISTORY_MESSAGE_LIMIT = Number.parseInt(process.env.OPENCLAW_HISTORY_MESSAGES || '40', 10)
 
 // Formato Responses de OpenAI — confirmado con curl real contra el gateway.
 interface ResponsesContentItem {
@@ -51,37 +53,6 @@ function extractText(result: ResponsesResult): string {
   throw new Error('Respuesta de OpenClaw (gateway) sin output[].content[].text reconocible')
 }
 
-function formatHistoryLine(m: AgentMessage): string {
-  return `${m.role === 'user' ? 'Usuario' : 'Unria'}: ${m.content}`
-}
-
-// Resumen (si existe) + últimos N mensajes de la conversación, para que la
-// continuidad de cada hilo de Cabina viva aquí y no dependa de nada que
-// ofrezca /v1/responses. Si no hay resumen y la conversación ya pasó del
-// límite, lo dice explícitamente — así una respuesta que no recuerda algo
-// dicho hace 15 mensajes se lee como "estado intermedio esperado", no como
-// un fallo silencioso.
-function buildContextBlock(session: AgentSessionRef, limit: number): string {
-  const parts: string[] = []
-
-  if (session.summary) {
-    parts.push('[Resumen de esta conversación hasta ahora]', session.summary)
-  }
-
-  const recent = session.history.slice(-limit)
-  const truncated = session.history.length > recent.length
-
-  if (recent.length > 0) {
-    parts.push('[Historial reciente]')
-    if (truncated && !session.summary) {
-      parts.push('[...mensajes anteriores no incluidos; resumen aún no disponible...]')
-    }
-    parts.push(...recent.map(formatHistoryLine))
-  }
-
-  return parts.join('\n')
-}
-
 // Habla con el gateway HTTP de OpenClaw en la sobremesa, vía Tailscale.
 // Formato Responses de OpenAI: POST /v1/responses, body {model, input}. Sin
 // ningún campo de sesión — confirmado que ninguno aísla nada en este
@@ -93,9 +64,8 @@ export class OpenClawGatewayAdapter implements AgentGateway {
       throw new Error('OPENCLAW_GATEWAY_TOKEN no configurado')
     }
 
-    const contextBlock = buildContextBlock(session, HISTORY_MESSAGE_LIMIT)
-    const enrichedMessage = contextBlock ? `${contextBlock}\n\n${message}` : message
-    const prompt = buildPrompt(enrichedMessage, context, session)
+    const contextPack = buildCabinaContextPack(message, context, session, HISTORY_MESSAGE_LIMIT)
+    const prompt = buildPrompt(contextPack, context, session, { structuredContextPack: true })
     const startedAt = Date.now()
 
     let res: Response

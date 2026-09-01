@@ -1,9 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Ambito, CabinaMessage, CabinaSessionDetail, CabinaSessionSummary, Modo } from '../types/cabina'
+import type { Ambito, CabinaApproval, CabinaMessage, CabinaSessionDetail, CabinaSessionSummary, Modo } from '../types/cabina'
 
 const DEFAULT_AMBITO: Ambito = 'proyectos_personales'
 const DEFAULT_MODO: Modo = 'diseno'
 const DEFAULT_TITLE = 'Nueva conversación'
+// El servidor ya persiste la respuesta aunque el cliente se desconecte a
+// media respuesta (ver cabina.ts) — lo que falta al volver es saber que
+// sigue en curso y refrescar cuando termine. Tope explícito para no dejar
+// un polling latiendo para siempre si el servidor nunca marca el fin.
+const POLL_INTERVAL_MS = 4000
+const POLL_MAX_ATTEMPTS = 60 // ~4 min a 4s por intento
 
 function emptyMessage(role: CabinaMessage['role'], ambito: Ambito, modo: Modo): CabinaMessage {
   return { role, content: '', ambito, modo }
@@ -13,6 +19,8 @@ function emptyMessage(role: CabinaMessage['role'], ambito: Ambito, modo: Modo): 
 // /api/cabina/* — no conoce el gateway ni cómo se genera la respuesta.
 export function useAgentSession() {
   const [sessions, setSessions] = useState<CabinaSessionSummary[]>([])
+  const [archivedSessions, setArchivedSessions] = useState<CabinaSessionSummary[]>([])
+  const [viewArchived, setViewArchived] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [ambito, setAmbito] = useState<Ambito>(DEFAULT_AMBITO)
@@ -20,9 +28,68 @@ export function useAgentSession() {
   const [title, setTitle] = useState(DEFAULT_TITLE)
   const [messages, setMessages] = useState<CabinaMessage[]>([])
   const [streaming, setStreaming] = useState(false)
+  const [sessionProcessing, setSessionProcessing] = useState(false)
+  const [approvals, setApprovals] = useState<CabinaApproval[]>([])
   const [error, setError] = useState<string | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
+  const pollRef = useRef<{ timer: ReturnType<typeof setInterval> | null; attempts: number }>({ timer: null, attempts: 0 })
+
+  function stopPolling() {
+    if (pollRef.current.timer) {
+      clearInterval(pollRef.current.timer)
+      pollRef.current.timer = null
+    }
+    pollRef.current.attempts = 0
+  }
+
+  // Solo se llama cuando GET /session/:id ya dijo processing:true — pregunta
+  // otra vez cada POLL_INTERVAL_MS hasta que deje de estarlo, con tope.
+  function startPolling(id: string) {
+    stopPolling()
+    pollRef.current.timer = setInterval(async () => {
+      pollRef.current.attempts += 1
+      if (pollRef.current.attempts > POLL_MAX_ATTEMPTS) {
+        stopPolling()
+        if (activeIdRef.current === id) {
+          setSessionProcessing(false)
+          setError('Unria está tardando más de lo esperado. Recarga la conversación para comprobar si respondió.')
+        }
+        return
+      }
+      try {
+        const res = await fetch(`/api/cabina/session/${id}`, { credentials: 'include' })
+        if (!res.ok) return
+        const data: CabinaSessionDetail = await res.json()
+        if (activeIdRef.current !== id) { stopPolling(); return }
+        if (!data.processing) {
+          stopPolling()
+          setSessionProcessing(false)
+          setMessages(Array.isArray(data.messages) ? data.messages : [])
+          setTitle(data.title)
+          // El turno que terminó mientras no mirábamos pudo haber creado una
+          // propuesta de acción — la recogemos aquí, no solo tras un envío
+          // directo (ver sendMessage).
+          void fetchApprovals(id)
+        }
+      } catch { /* red intermitente — se reintenta en el próximo tick */ }
+    }, POLL_INTERVAL_MS)
+  }
+
+  // #723-MVP — pendientes de la sesión (cola de aprobación). Se llama al
+  // seleccionar sesión, tras cada turno, y al resolver el polling — nunca
+  // bloquea la UI si falla (misma filosofía best-effort que el resto de
+  // refrescos de este hook).
+  async function fetchApprovals(sessionId: string) {
+    try {
+      const res = await fetch(`/api/approvals?sessionId=${sessionId}&status=pending`, { credentials: 'include' })
+      if (!res.ok) return
+      const data: CabinaApproval[] = await res.json()
+      if (activeIdRef.current === sessionId) setApprovals(Array.isArray(data) ? data : [])
+    } catch { /* no crítico */ }
+  }
+
+  useEffect(() => () => stopPolling(), [])
   // Permite a sendMessage comprobar, tras un await, si el usuario sigue en
   // la misma sesión antes de tocar `messages` — evita que una respuesta (o
   // un marcado de error) de una sesión abandonada corrompa la que se ve
@@ -48,6 +115,7 @@ export function useAgentSession() {
   async function selectSession(id: string) {
     abortRef.current?.abort()
     setStreaming(false)
+    stopPolling()
     setActiveId(id)
     setError(null)
     try {
@@ -58,6 +126,9 @@ export function useAgentSession() {
       setModo(data.modo)
       setTitle(data.title)
       setMessages(Array.isArray(data.messages) ? data.messages : [])
+      setSessionProcessing(data.processing)
+      if (data.processing) startPolling(id)
+      void fetchApprovals(id)
     } catch {
       setMessages([])
       setError('No se pudo cargar la conversación')
@@ -100,21 +171,33 @@ export function useAgentSession() {
       const data: CabinaSessionDetail = await res.json()
       const summary: CabinaSessionSummary = {
         id: data.id, ambito: data.ambito, modo: data.modo, title: data.title,
-        created_at: data.created_at, updated_at: data.updated_at
+        archived_at: data.archived_at, created_at: data.created_at, updated_at: data.updated_at
       }
       setSessions((prev) => [summary, ...prev.filter((s) => s.id !== id)])
       // activeIdRef, no el `activeId` de estado: este closure puede venir de
       // un render donde activeId todavía era null (primer mensaje de una
       // sesión recién creada) aunque la sesión activa real ya sea `id`.
-      if (activeIdRef.current === id) setTitle(data.title)
+      if (activeIdRef.current === id) {
+        setTitle(data.title)
+        // #723-MVP: la burbuja local se fue llenando con los chunks crudos
+        // del stream (que pueden incluir un bloque [ACCION_PROPUESTA] sin
+        // recortar todavía — ver cabina.ts). Al terminar el turno,
+        // sustituimos por los mensajes ya persistidos (con el bloque
+        // quitado) para que ese texto crudo nunca quede visible más allá
+        // del instante en que llega por streaming.
+        setMessages(Array.isArray(data.messages) ? data.messages : [])
+      }
     } catch { /* no crítico — el título/orden local sigue siendo razonable */ }
   }
 
-  async function renameSession(newTitle: string) {
+  // Recibe el id explícito porque se renombra desde la lista (cualquier
+  // fila, no solo la activa) — activeIdRef solo decide si además hay que
+  // refrescar el título mostrado en el panel de contexto.
+  async function renameSession(id: string, newTitle: string) {
     const trimmed = newTitle.trim()
-    if (!trimmed || !activeId) return
+    if (!trimmed) return
     try {
-      const res = await fetch(`/api/cabina/session/${activeId}`, {
+      const res = await fetch(`/api/cabina/session/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -122,10 +205,75 @@ export function useAgentSession() {
       })
       if (!res.ok) throw new Error('rename failed')
       const data: CabinaSessionSummary = await res.json()
-      setTitle(data.title)
       setSessions((prev) => prev.map((s) => (s.id === data.id ? data : s)))
+      if (activeIdRef.current === data.id) setTitle(data.title)
     } catch {
       setError('No se pudo renombrar la conversación')
+    }
+  }
+
+  // Cambia entre la lista activa y la archivada, recargando desde el
+  // servidor (cubre también el caso de volver a "Activas" tras desarchivar
+  // algo, sin tener que sincronizar los dos arrays a mano).
+  async function setArchivedView(archived: boolean) {
+    setViewArchived(archived)
+    try {
+      const res = await fetch(`/api/cabina/history?archived=${archived}`, { credentials: 'include' })
+      const data: CabinaSessionSummary[] = await res.json()
+      if (archived) setArchivedSessions(data)
+      else setSessions(data)
+    } catch {
+      setError('No se pudo cargar el historial')
+    }
+  }
+
+  // Archivar es reversible — solo oculta de la lista activa. Si era la
+  // sesión abierta, la deseleccionamos (ya no tiene sentido seguir
+  // "sobre" una conversación que acaba de desaparecer de la lista).
+  async function archiveSession(id: string) {
+    try {
+      const res = await fetch(`/api/cabina/session/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ archived: true })
+      })
+      if (!res.ok) throw new Error('archive failed')
+      setSessions((prev) => prev.filter((s) => s.id !== id))
+      if (activeId === id) {
+        setActiveId(null)
+        setMessages([])
+        setTitle(DEFAULT_TITLE)
+      }
+    } catch {
+      setError('No se pudo archivar la conversación')
+    }
+  }
+
+  async function unarchiveSession(id: string) {
+    try {
+      const res = await fetch(`/api/cabina/session/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ archived: false })
+      })
+      if (!res.ok) throw new Error('unarchive failed')
+      setArchivedSessions((prev) => prev.filter((s) => s.id !== id))
+    } catch {
+      setError('No se pudo desarchivar la conversación')
+    }
+  }
+
+  // Irreversible — el servidor ya exige que esté archivada antes de
+  // borrarla (mismo "dos pasos" reforzado del lado del backend).
+  async function deleteSession(id: string) {
+    try {
+      const res = await fetch(`/api/cabina/session/${id}`, { method: 'DELETE', credentials: 'include' })
+      if (!res.ok) throw new Error('delete failed')
+      setArchivedSessions((prev) => prev.filter((s) => s.id !== id))
+    } catch {
+      setError('No se pudo borrar la conversación')
     }
   }
 
@@ -183,7 +331,10 @@ export function useAgentSession() {
 
       // El servidor persiste igual aunque nos hayamos ido a otra sesión —
       // solo refrescamos metadatos (título/orden) si seguimos mirándola.
-      if (activeIdRef.current === sessionId) await refreshSessionMeta(sessionId)
+      if (activeIdRef.current === sessionId) {
+        await refreshSessionMeta(sessionId)
+        void fetchApprovals(sessionId)
+      }
     } catch (err) {
       const isAbort = err instanceof Error && err.name === 'AbortError'
       // El servidor sigue consumiendo el gateway y persiste la respuesta
@@ -206,8 +357,40 @@ export function useAgentSession() {
     }
   }
 
+  // #723-MVP — aprobar/rechazar una propuesta pendiente. El estado decidido
+  // (ejecutada/fallida/rechazada/caducada) nunca se adivina aquí — viene tal
+  // cual del backend en la respuesta — pero la tarjeta se actualiza IN SITU
+  // en vez de desaparecer: un fetchApprovals(status=pending) tras resolverla
+  // la sacaría de la lista al dejar de estar pendiente, y el usuario nunca
+  // vería si quedó ejecutada (con su "SIMULADO") o rechazada. Solo se cae al
+  // refetch completo si la petición en sí falla (red), para no dejar la
+  // tarjeta en un estado que no se sabe si es real.
+  async function approveAction(id: string) {
+    try {
+      const res = await fetch(`/api/approvals/${id}/approve`, { method: 'POST', credentials: 'include' })
+      const updated: CabinaApproval = await res.json()
+      setApprovals((prev) => prev.map((a) => (a.id === id ? updated : a)))
+    } catch {
+      setError('No se pudo aprobar la acción')
+      if (activeId) await fetchApprovals(activeId)
+    }
+  }
+
+  async function rejectAction(id: string) {
+    try {
+      const res = await fetch(`/api/approvals/${id}/reject`, { method: 'POST', credentials: 'include' })
+      const updated: CabinaApproval = await res.json()
+      setApprovals((prev) => prev.map((a) => (a.id === id ? updated : a)))
+    } catch {
+      setError('No se pudo rechazar la acción')
+      if (activeId) await fetchApprovals(activeId)
+    }
+  }
+
   return {
     sessions,
+    archivedSessions,
+    viewArchived,
     loadingHistory,
     activeId,
     ambito,
@@ -215,12 +398,20 @@ export function useAgentSession() {
     title,
     messages,
     streaming,
+    sessionProcessing,
+    approvals,
     error,
     setAmbito,
     setModo,
     selectSession,
     newSession,
     renameSession,
-    sendMessage
+    sendMessage,
+    setArchivedView,
+    archiveSession,
+    unarchiveSession,
+    deleteSession,
+    approveAction,
+    rejectAction
   }
 }

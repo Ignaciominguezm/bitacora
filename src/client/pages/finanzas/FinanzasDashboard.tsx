@@ -87,7 +87,7 @@ function eur(n: number): string {
 export function FinanzasDashboard({
   onNavigate
 }: {
-  onNavigate: (view: 'cuentas' | 'revision') => void
+  onNavigate: (view: 'cuentas' | 'vista-mensual') => void
 }) {
   const [data, setData] = useState<DashboardResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -119,7 +119,7 @@ export function FinanzasDashboard({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <button onClick={() => onNavigate('cuentas')} style={navBtnStyle}>Gestionar cuentas →</button>
-        <button onClick={() => onNavigate('revision')} style={navBtnStyle}>Revisión semanal →</button>
+        <button onClick={() => onNavigate('vista-mensual')} style={navBtnStyle}>Vista mensual →</button>
       </div>
 
       {loading && (
@@ -144,7 +144,7 @@ export function FinanzasDashboard({
 
           <VencimientosBlock items={data.vencimientos_semana} />
           <DeudasBlock ambitos={data.ambitos} />
-          <PendientesBlock items={data.pendientes_de_revisar} onGoRevisar={() => onNavigate('revision')} />
+          <PendientesBlock items={data.pendientes_de_revisar} onGoRevisar={() => onNavigate('vista-mensual')} />
         </>
       )}
     </div>
@@ -445,7 +445,7 @@ function PendientesBlock({ items, onGoRevisar }: { items: Pendiente[]; onGoRevis
             letterSpacing: '0.04em'
           }}
         >
-          Ir a Revisión semanal →
+          Ir a Vista mensual →
         </button>
       </div>
       <div style={{ padding: 12, display: 'flex', flexWrap: 'wrap', gap: 8 }}>

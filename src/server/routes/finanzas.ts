@@ -1,9 +1,11 @@
 import { Hono } from 'hono'
+import { randomUUID } from 'node:crypto'
 import { finanzasDb, immReadonlyDb } from '../db/index.js'
 
 export const finanzasRoutes = new Hono()
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const TIPOS_CUENTA = ['banco', 'efectivo', 'otro'] as const
 type TipoCuenta = (typeof TIPOS_CUENTA)[number]
@@ -1716,11 +1718,13 @@ finanzasRoutes.put('/apertura', async (c) => {
 })
 
 // ─── movimientos reales — solo ingreso/gasto/ajuste en este bloque ──────
-// Traspasos (traspaso_salida/traspaso_entrada) son el BLOQUE B, otra
-// tarea: aquí se rechazan explícitamente con mensaje, nunca se crean,
-// editan ni borran desde estos endpoints.
+// Traspasos (traspaso_salida/traspaso_entrada) son el BLOQUE B: tienen su
+// propia familia de endpoints (POST/PATCH/DELETE /api/finanzas/traspasos,
+// más abajo) porque un traspaso interno son DOS apuntes atómicos ligados
+// por grupo_traspaso, no un movimiento suelto. Aquí se siguen rechazando
+// explícitamente — nunca se crean, editan ni borran desde /movimientos.
 
-const MOVIMIENTO_TRASPASO_MSG = 'Los traspasos se crean en su propia pantalla (bloque B, aún no implementado)'
+const MOVIMIENTO_TRASPASO_MSG = 'Los traspasos se gestionan desde /api/finanzas/traspasos (interno: dos patas atómicas; externo: un apunte con tercero), no desde /movimientos'
 
 // GET /api/finanzas/movimientos — lee v_movimientos_reales (categoría,
 // tercero y cuenta ya resueltos por la vista). El agrupado por ámbito NO
@@ -2542,4 +2546,278 @@ finanzasRoutes.get('/obligaciones/sugerencias', async (c) => {
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'query error' }, 500)
   }
+})
+
+// ─── traspasos (#743, bloque B) ──────────────────────────────────────────
+// INTERNO: dos apuntes atómicos (traspaso_salida en origen, traspaso_entrada
+// en destino) ligados por un mismo grupo_traspaso (UUID), SIEMPRE creados/
+// editados/borrados juntos en transacción. Origen y destino deben ser del
+// MISMO ámbito — cruzar ámbitos no es un traspaso, son patrimonios
+// distintos. EXTERNO: un único traspaso_salida con tercero_id y
+// grupo_traspaso NULL — dinero que sale hacia fuera. Una entrada de dinero
+// externo (alguien me paga) NO es un traspaso_entrada suelto (el CHECK de
+// BD exige grupo_traspaso en toda entrada): se registra como ingreso normal
+// desde /movimientos. Se identifica el traspaso a editar/borrar por
+// grupo_traspaso (UUID, interno) o por el id del apunte (entero, externo).
+
+const TRASPASO_COLS = `id, cuenta_id, TO_CHAR(fecha, 'YYYY-MM-DD') AS fecha, tipo, importe, moneda,
+  tercero_id, grupo_traspaso, concepto, notas, created_at, updated_at`
+
+// POST /api/finanzas/traspasos
+finanzasRoutes.post('/traspasos', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Body inválido' }, 400)
+  const { tipo_traspaso, cuenta_origen_id, cuenta_destino_id, tercero_id, fecha, importe, concepto, notas } = body as Record<string, unknown>
+
+  if (tipo_traspaso !== 'interno' && tipo_traspaso !== 'externo') {
+    return c.json({ error: `tipo_traspaso debe ser 'interno' o 'externo'` }, 400)
+  }
+  if (typeof cuenta_origen_id !== 'number' || !Number.isInteger(cuenta_origen_id)) return c.json({ error: 'cuenta_origen_id es obligatorio' }, 400)
+  if (typeof fecha !== 'string' || !ISO_DATE_RE.test(fecha)) return c.json({ error: 'fecha debe tener formato YYYY-MM-DD' }, 400)
+  const importeNum = parseNumeric(importe)
+  if (importeNum === null || importeNum <= 0) {
+    return c.json({ error: 'importe es obligatorio y debe ser un número mayor que 0 (el signo lo pone el sistema)' }, 400)
+  }
+  if (concepto !== undefined && concepto !== null && typeof concepto !== 'string') return c.json({ error: 'concepto debe ser texto' }, 400)
+  if (notas !== undefined && notas !== null && typeof notas !== 'string') return c.json({ error: 'notas debe ser texto' }, 400)
+
+  if (tipo_traspaso === 'interno') {
+    if (typeof cuenta_destino_id !== 'number' || !Number.isInteger(cuenta_destino_id)) {
+      return c.json({ error: 'cuenta_destino_id es obligatorio para un traspaso interno' }, 400)
+    }
+    if (cuenta_destino_id === cuenta_origen_id) return c.json({ error: 'La cuenta de origen y la de destino deben ser distintas' }, 400)
+
+    const client = await finanzasDb.connect()
+    try {
+      const cuentas = await client.query('SELECT id, ambito_id FROM cuentas_financieras WHERE id = ANY($1::int[])', [[cuenta_origen_id, cuenta_destino_id]])
+      const origen = cuentas.rows.find((r) => r.id === cuenta_origen_id)
+      const destino = cuentas.rows.find((r) => r.id === cuenta_destino_id)
+      if (!origen) return c.json({ error: 'cuenta_origen_id no existe' }, 400)
+      if (!destino) return c.json({ error: 'cuenta_destino_id no existe' }, 400)
+      if (origen.ambito_id !== destino.ambito_id) {
+        return c.json({ error: 'Un traspaso interno solo puede hacerse entre cuentas del MISMO ámbito — entre ámbitos distintos son patrimonios separados' }, 400)
+      }
+
+      const grupo = randomUUID()
+      await client.query('BEGIN')
+      const salida = await client.query(
+        `INSERT INTO movimientos_reales (cuenta_id, fecha, tipo, importe, grupo_traspaso, concepto, notas)
+         VALUES ($1, $2, 'traspaso_salida', $3, $4, $5, $6)
+         RETURNING ${TRASPASO_COLS}`,
+        [cuenta_origen_id, fecha, -Math.abs(importeNum), grupo, concepto ?? null, notas ?? null]
+      )
+      const entrada = await client.query(
+        `INSERT INTO movimientos_reales (cuenta_id, fecha, tipo, importe, grupo_traspaso, concepto, notas)
+         VALUES ($1, $2, 'traspaso_entrada', $3, $4, $5, $6)
+         RETURNING ${TRASPASO_COLS}`,
+        [cuenta_destino_id, fecha, Math.abs(importeNum), grupo, concepto ?? null, notas ?? null]
+      )
+      await client.query('COMMIT')
+      return c.json({ grupo_traspaso: grupo, salida: salida.rows[0], entrada: entrada.rows[0] }, 201)
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {})
+      return c.json({ error: err instanceof Error ? err.message : 'insert error' }, 500)
+    } finally {
+      client.release()
+    }
+  }
+
+  // externo
+  if (typeof tercero_id !== 'number' || !Number.isInteger(tercero_id)) {
+    return c.json({ error: 'tercero_id es obligatorio para un traspaso externo' }, 400)
+  }
+  try {
+    const cuentaExists = await finanzasDb.query('SELECT 1 FROM cuentas_financieras WHERE id = $1', [cuenta_origen_id])
+    if (cuentaExists.rowCount === 0) return c.json({ error: 'cuenta_origen_id no existe' }, 400)
+    const terceroExists = await finanzasDb.query('SELECT 1 FROM terceros WHERE id = $1', [tercero_id])
+    if (terceroExists.rowCount === 0) return c.json({ error: 'tercero_id no existe' }, 400)
+
+    const result = await finanzasDb.query(
+      `INSERT INTO movimientos_reales (cuenta_id, fecha, tipo, importe, tercero_id, concepto, notas)
+       VALUES ($1, $2, 'traspaso_salida', $3, $4, $5, $6)
+       RETURNING ${TRASPASO_COLS}`,
+      [cuenta_origen_id, fecha, -Math.abs(importeNum), tercero_id, concepto ?? null, notas ?? null]
+    )
+    return c.json({ traspaso: result.rows[0] }, 201)
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'insert error' }, 500)
+  }
+})
+
+// GET /api/finanzas/traspasos/:grupo — las dos patas de un traspaso interno
+finanzasRoutes.get('/traspasos/:grupo', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const grupo = c.req.param('grupo')
+  if (!UUID_RE.test(grupo)) return c.json({ error: 'grupo debe ser un UUID de grupo_traspaso' }, 400)
+
+  try {
+    const result = await finanzasDb.query(
+      `SELECT m.id, m.cuenta_id, TO_CHAR(m.fecha, 'YYYY-MM-DD') AS fecha, m.tipo, m.importe, m.moneda,
+              m.grupo_traspaso, m.concepto, m.notas, m.created_at, m.updated_at, c.nombre AS cuenta_nombre
+       FROM movimientos_reales m
+       JOIN cuentas_financieras c ON c.id = m.cuenta_id
+       WHERE m.grupo_traspaso = $1
+       ORDER BY m.tipo`,
+      [grupo]
+    )
+    if (result.rowCount === 0) return c.json({ error: 'Grupo de traspaso no encontrado' }, 404)
+    return c.json({ patas: result.rows })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'query error' }, 500)
+  }
+})
+
+// PATCH /api/finanzas/traspasos/:grupoOId — grupo_traspaso (UUID) edita las
+// dos patas juntas en transacción; un id entero edita el apunte externo único.
+finanzasRoutes.patch('/traspasos/:grupoOId', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const param = c.req.param('grupoOId')
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Body inválido' }, 400)
+  const { fecha, importe, concepto, notas, tercero_id } = body as Record<string, unknown>
+
+  if (fecha !== undefined && (typeof fecha !== 'string' || !ISO_DATE_RE.test(fecha))) {
+    return c.json({ error: 'fecha debe tener formato YYYY-MM-DD' }, 400)
+  }
+  let importeNum: number | null = null
+  if (importe !== undefined) {
+    importeNum = parseNumeric(importe)
+    if (importeNum === null || importeNum <= 0) return c.json({ error: 'importe debe ser un número mayor que 0 (el signo lo pone el sistema)' }, 400)
+  }
+  if (concepto !== undefined && concepto !== null && typeof concepto !== 'string') return c.json({ error: 'concepto debe ser texto' }, 400)
+  if (notas !== undefined && notas !== null && typeof notas !== 'string') return c.json({ error: 'notas debe ser texto' }, 400)
+
+  if (UUID_RE.test(param)) {
+    if (fecha === undefined && importe === undefined && concepto === undefined && notas === undefined) {
+      return c.json({ error: 'Nada que actualizar' }, 400)
+    }
+    const client = await finanzasDb.connect()
+    try {
+      const existing = await client.query('SELECT id, tipo FROM movimientos_reales WHERE grupo_traspaso = $1', [param])
+      if (existing.rowCount === 0) return c.json({ error: 'Grupo de traspaso no encontrado' }, 404)
+      const salida = existing.rows.find((r) => r.tipo === 'traspaso_salida')
+      const entrada = existing.rows.find((r) => r.tipo === 'traspaso_entrada')
+      if (existing.rowCount !== 2 || !salida || !entrada) {
+        return c.json({ error: 'Este grupo de traspaso no tiene exactamente una salida y una entrada — revísalo manualmente' }, 409)
+      }
+
+      const salidaSets: string[] = []
+      const salidaParams: unknown[] = []
+      const entradaSets: string[] = []
+      const entradaParams: unknown[] = []
+      if (fecha !== undefined) {
+        salidaParams.push(fecha); salidaSets.push(`fecha = $${salidaParams.length}`)
+        entradaParams.push(fecha); entradaSets.push(`fecha = $${entradaParams.length}`)
+      }
+      if (importeNum !== null) {
+        salidaParams.push(-Math.abs(importeNum)); salidaSets.push(`importe = $${salidaParams.length}`)
+        entradaParams.push(Math.abs(importeNum)); entradaSets.push(`importe = $${entradaParams.length}`)
+      }
+      if (concepto !== undefined) {
+        salidaParams.push(concepto); salidaSets.push(`concepto = $${salidaParams.length}`)
+        entradaParams.push(concepto); entradaSets.push(`concepto = $${entradaParams.length}`)
+      }
+      if (notas !== undefined) {
+        salidaParams.push(notas); salidaSets.push(`notas = $${salidaParams.length}`)
+        entradaParams.push(notas); entradaSets.push(`notas = $${entradaParams.length}`)
+      }
+      salidaSets.push('updated_at = now()')
+      entradaSets.push('updated_at = now()')
+      salidaParams.push(salida.id)
+      entradaParams.push(entrada.id)
+
+      await client.query('BEGIN')
+      await client.query(`UPDATE movimientos_reales SET ${salidaSets.join(', ')} WHERE id = $${salidaParams.length}`, salidaParams)
+      await client.query(`UPDATE movimientos_reales SET ${entradaSets.join(', ')} WHERE id = $${entradaParams.length}`, entradaParams)
+      const updated = await client.query(
+        `SELECT ${TRASPASO_COLS} FROM movimientos_reales WHERE grupo_traspaso = $1 ORDER BY tipo`,
+        [param]
+      )
+      await client.query('COMMIT')
+      return c.json({ patas: updated.rows })
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {})
+      return c.json({ error: err instanceof Error ? err.message : 'update error' }, 500)
+    } finally {
+      client.release()
+    }
+  }
+
+  if (/^\d+$/.test(param)) {
+    try {
+      const existing = await finanzasDb.query('SELECT id, tipo, grupo_traspaso FROM movimientos_reales WHERE id = $1', [param])
+      if (existing.rowCount === 0) return c.json({ error: 'Traspaso no encontrado' }, 404)
+      const row = existing.rows[0]
+      if (row.tipo !== 'traspaso_salida' || row.grupo_traspaso !== null) {
+        return c.json({ error: 'Ese id no es un traspaso externo — los internos se editan por su grupo_traspaso' }, 400)
+      }
+
+      const sets: string[] = []
+      const params: unknown[] = []
+      if (fecha !== undefined) { params.push(fecha); sets.push(`fecha = $${params.length}`) }
+      if (importeNum !== null) { params.push(-Math.abs(importeNum)); sets.push(`importe = $${params.length}`) }
+      if (concepto !== undefined) { params.push(concepto); sets.push(`concepto = $${params.length}`) }
+      if (notas !== undefined) { params.push(notas); sets.push(`notas = $${params.length}`) }
+      if (tercero_id !== undefined) {
+        if (typeof tercero_id !== 'number' || !Number.isInteger(tercero_id)) return c.json({ error: 'tercero_id debe ser un entero' }, 400)
+        const terExists = await finanzasDb.query('SELECT 1 FROM terceros WHERE id = $1', [tercero_id])
+        if (terExists.rowCount === 0) return c.json({ error: 'tercero_id no existe' }, 400)
+        params.push(tercero_id); sets.push(`tercero_id = $${params.length}`)
+      }
+      if (sets.length === 0) return c.json({ error: 'Nada que actualizar' }, 400)
+      sets.push('updated_at = now()')
+      params.push(param)
+
+      const result = await finanzasDb.query(
+        `UPDATE movimientos_reales SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING ${TRASPASO_COLS}`,
+        params
+      )
+      return c.json({ traspaso: result.rows[0] })
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : 'update error' }, 500)
+    }
+  }
+
+  return c.json({ error: 'Parámetro inválido: debe ser un grupo_traspaso (UUID) o un id de movimiento' }, 400)
+})
+
+// DELETE /api/finanzas/traspasos/:grupoOId
+finanzasRoutes.delete('/traspasos/:grupoOId', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const param = c.req.param('grupoOId')
+
+  if (UUID_RE.test(param)) {
+    const client = await finanzasDb.connect()
+    try {
+      const existing = await client.query('SELECT id FROM movimientos_reales WHERE grupo_traspaso = $1', [param])
+      if (existing.rowCount === 0) return c.json({ error: 'Grupo de traspaso no encontrado' }, 404)
+      await client.query('BEGIN')
+      await client.query('DELETE FROM movimientos_reales WHERE grupo_traspaso = $1', [param])
+      await client.query('COMMIT')
+      return c.json({ ok: true })
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {})
+      return c.json({ error: err instanceof Error ? err.message : 'delete error' }, 500)
+    } finally {
+      client.release()
+    }
+  }
+
+  if (/^\d+$/.test(param)) {
+    try {
+      const existing = await finanzasDb.query('SELECT tipo, grupo_traspaso FROM movimientos_reales WHERE id = $1', [param])
+      if (existing.rowCount === 0) return c.json({ error: 'Traspaso no encontrado' }, 404)
+      const row = existing.rows[0]
+      if (row.tipo !== 'traspaso_salida' || row.grupo_traspaso !== null) {
+        return c.json({ error: 'Ese id no es un traspaso externo — los internos se borran por su grupo_traspaso' }, 400)
+      }
+      await finanzasDb.query('DELETE FROM movimientos_reales WHERE id = $1', [param])
+      return c.json({ ok: true })
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : 'delete error' }, 500)
+    }
+  }
+
+  return c.json({ error: 'Parámetro inválido: debe ser un grupo_traspaso (UUID) o un id de movimiento' }, 400)
 })

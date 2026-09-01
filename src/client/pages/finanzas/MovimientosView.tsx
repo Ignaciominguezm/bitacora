@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { type Ambito, hexToRgba, formatSaldo, formatDateEs, parseEsNumber } from './shared'
 
 interface Cuenta {
@@ -43,6 +43,7 @@ interface Movimiento {
   moneda: string
   categoria_id: number | null
   tercero_id: number | null
+  grupo_traspaso: string | null
   concepto: string | null
   notas: string | null
   ambito_id: number
@@ -53,6 +54,59 @@ interface Movimiento {
   cuenta_nombre?: string
   categoria_nombre?: string
   tercero_nombre?: string
+}
+
+// Un traspaso interno son DOS filas de movimientos_reales (misma
+// grupo_traspaso) que se muestran como UNA sola línea en el listado; uno
+// externo es una única fila traspaso_salida con grupo_traspaso NULL.
+type DisplayRow =
+  | { kind: 'simple'; m: Movimiento }
+  | { kind: 'traspaso-interno'; grupo: string; salida: Movimiento; entrada: Movimiento }
+  | { kind: 'traspaso-externo'; m: Movimiento }
+
+type TraspasoEditTarget = { kind: 'interno'; grupo: string; salida: Movimiento; entrada: Movimiento } | { kind: 'externo'; m: Movimiento }
+
+// Si la paginación cortara un grupo justo por la mitad (muy raro: ambas
+// patas se crean juntas y quedan casi siempre adyacentes en el orden por
+// fecha/id), la pata suelta no se oculta: cae a 'simple' para no perder
+// visibilidad de un movimiento real.
+function buildDisplayRows(movimientos: Movimiento[]): DisplayRow[] {
+  const byGrupo = new Map<string, Movimiento[]>()
+  for (const m of movimientos) {
+    if ((m.tipo === 'traspaso_salida' || m.tipo === 'traspaso_entrada') && m.grupo_traspaso) {
+      const arr = byGrupo.get(m.grupo_traspaso) ?? []
+      arr.push(m)
+      byGrupo.set(m.grupo_traspaso, arr)
+    }
+  }
+
+  const rows: DisplayRow[] = []
+  const usedIds = new Set<number>()
+  for (const m of movimientos) {
+    if (usedIds.has(m.id)) continue
+
+    if (m.tipo === 'traspaso_salida' && m.grupo_traspaso === null) {
+      rows.push({ kind: 'traspaso-externo', m })
+      usedIds.add(m.id)
+      continue
+    }
+
+    if ((m.tipo === 'traspaso_salida' || m.tipo === 'traspaso_entrada') && m.grupo_traspaso) {
+      const pair = byGrupo.get(m.grupo_traspaso) ?? []
+      const salida = pair.find((x) => x.tipo === 'traspaso_salida')
+      const entrada = pair.find((x) => x.tipo === 'traspaso_entrada')
+      if (salida && entrada) {
+        rows.push({ kind: 'traspaso-interno', grupo: m.grupo_traspaso, salida, entrada })
+        usedIds.add(salida.id)
+        usedIds.add(entrada.id)
+        continue
+      }
+    }
+
+    rows.push({ kind: 'simple', m })
+    usedIds.add(m.id)
+  }
+  return rows
 }
 
 interface AperturaCuenta {
@@ -133,6 +187,7 @@ export function MovimientosView({ ambitos }: { ambitos: Ambito[] }) {
   const [loading, setLoading] = useState(true)
   const [showApertura, setShowApertura] = useState(false)
   const [showForm, setShowForm] = useState<Movimiento | 'new' | null>(null)
+  const [showTraspasoForm, setShowTraspasoForm] = useState<TraspasoEditTarget | 'new' | null>(null)
 
   const [filtros, setFiltros] = useState({ ambito_id: '', cuenta_id: '', tipo: '', desde: '', hasta: '' })
 
@@ -197,6 +252,24 @@ export function MovimientosView({ ambitos }: { ambitos: Ambito[] }) {
     }
   }
 
+  async function deleteTraspaso(idOrGrupo: string) {
+    if (!window.confirm('¿Borrar este traspaso? No se puede deshacer.')) return
+    try {
+      const res = await fetch(`/api/finanzas/traspasos/${idOrGrupo}`, { method: 'DELETE', credentials: 'include' })
+      if (res.ok) {
+        await fetchMovimientos()
+        bumpSaldoRefresh()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        window.alert(data.error ?? 'No se pudo borrar')
+      }
+    } catch {
+      window.alert('Error de red')
+    }
+  }
+
+  const displayRows = useMemo(() => buildDisplayRows(movimientos), [movimientos])
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <SaldoCalculadoPanel ambitos={ambitos} onOpenApertura={() => setShowApertura(true)} refreshToken={saldoRefreshToken} />
@@ -222,23 +295,49 @@ export function MovimientosView({ ambitos }: { ambitos: Ambito[] }) {
           <input type="date" value={filtros.desde} onChange={(e) => setFiltros({ ...filtros, desde: e.target.value })} style={{ ...inputStyle, width: 'auto' }} title="Desde" />
           <input type="date" value={filtros.hasta} onChange={(e) => setFiltros({ ...filtros, hasta: e.target.value })} style={{ ...inputStyle, width: 'auto' }} title="Hasta" />
         </div>
-        <button onClick={() => setShowForm('new')} style={{ ...smallBtn, color: '#C8A840', borderColor: 'rgba(200,168,64,0.35)', padding: '6px 14px' }}>
-          + Nuevo movimiento
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => setShowForm('new')} style={{ ...smallBtn, color: '#C8A840', borderColor: 'rgba(200,168,64,0.35)', padding: '6px 14px' }}>
+            + Nuevo movimiento
+          </button>
+          <button onClick={() => setShowTraspasoForm('new')} style={{ ...smallBtn, color: '#8B9DC8', borderColor: 'rgba(139,157,200,0.35)', padding: '6px 14px' }}>
+            + Nuevo traspaso
+          </button>
+        </div>
       </div>
 
       {loading ? (
         <div style={{ color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)' }}>Cargando...</div>
       ) : (
         <div style={{ background: '#13100A', border: '1px solid rgba(200,168,64,0.15)' }}>
-          {movimientos.length === 0 && (
+          {displayRows.length === 0 && (
             <div style={{ padding: '16px 12px', fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>
               Sin movimientos con estos filtros.
             </div>
           )}
-          {movimientos.map((m) => (
-            <MovimientoRow key={m.id} m={m} onEdit={() => setShowForm(m)} onDelete={() => deleteMovimiento(m)} />
-          ))}
+          {displayRows.map((row) => {
+            if (row.kind === 'simple') {
+              return <MovimientoRow key={row.m.id} m={row.m} onEdit={() => setShowForm(row.m)} onDelete={() => deleteMovimiento(row.m)} />
+            }
+            if (row.kind === 'traspaso-interno') {
+              return (
+                <TraspasoInternoRow
+                  key={row.grupo}
+                  salida={row.salida}
+                  entrada={row.entrada}
+                  onEdit={() => setShowTraspasoForm({ kind: 'interno', grupo: row.grupo, salida: row.salida, entrada: row.entrada })}
+                  onDelete={() => deleteTraspaso(row.grupo)}
+                />
+              )
+            }
+            return (
+              <TraspasoExternoRow
+                key={row.m.id}
+                m={row.m}
+                onEdit={() => setShowTraspasoForm({ kind: 'externo', m: row.m })}
+                onDelete={() => deleteTraspaso(String(row.m.id))}
+              />
+            )
+          })}
         </div>
       )}
 
@@ -253,6 +352,21 @@ export function MovimientosView({ ambitos }: { ambitos: Ambito[] }) {
           onClose={() => setShowForm(null)}
           onSaved={() => {
             setShowForm(null)
+            fetchMovimientos()
+            bumpSaldoRefresh()
+          }}
+        />
+      )}
+
+      {showTraspasoForm && (
+        <TraspasoFormModal
+          mode={showTraspasoForm === 'new' ? 'create' : 'edit'}
+          target={showTraspasoForm === 'new' ? null : showTraspasoForm}
+          ambitos={ambitos}
+          cuentas={cuentas}
+          onClose={() => setShowTraspasoForm(null)}
+          onSaved={() => {
+            setShowTraspasoForm(null)
             fetchMovimientos()
             bumpSaldoRefresh()
           }}
@@ -314,8 +428,318 @@ function MovimientoRow({ m, onEdit, onDelete }: { m: Movimiento; onEdit: () => v
             <button onClick={onDelete} style={{ ...smallBtn, border: 'none', padding: 2, color: '#f87171' }}>Borrar</button>
           </>
         ) : (
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)' }}>bloque B</span>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)' }} title="Falta la otra pata de este traspaso en esta página del listado">
+            par incompleto
+          </span>
         )}
+      </div>
+    </div>
+  )
+}
+
+function TraspasoInternoRow({ salida, entrada, onEdit, onDelete }: { salida: Movimiento; entrada: Movimiento; onEdit: () => void; onDelete: () => void }) {
+  const importe = Math.abs(Number(salida.importe))
+  return (
+    <div
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '8px 12px', borderBottom: '1px solid rgba(200,168,64,0.06)', gap: 12, flexWrap: 'wrap'
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flexWrap: 'wrap' }}>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)', minWidth: 76 }}>
+          {formatDateEs(salida.fecha)}
+        </span>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: salida.ambito_color }}>
+          {salida.ambito_nombre.toUpperCase()}
+        </span>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#8B9DC8', border: '1px solid rgba(139,157,200,0.3)', padding: '2px 6px' }}>
+          Traspaso interno
+        </span>
+        <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-sm)', color: '#E8DCC8' }}>
+          {salida.cuenta_nombre ?? '—'} → {entrada.cuenta_nombre ?? '—'}
+        </span>
+        {salida.concepto && (
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)' }}>· {salida.concepto}</span>
+        )}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)', color: '#8B9DC8' }}>{eur(importe)}</span>
+        <button onClick={onEdit} style={{ ...smallBtn, border: 'none', padding: 2 }}>Editar</button>
+        <button onClick={onDelete} style={{ ...smallBtn, border: 'none', padding: 2, color: '#f87171' }}>Borrar</button>
+      </div>
+    </div>
+  )
+}
+
+function TraspasoExternoRow({ m, onEdit, onDelete }: { m: Movimiento; onEdit: () => void; onDelete: () => void }) {
+  return (
+    <div
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '8px 12px', borderBottom: '1px solid rgba(200,168,64,0.06)', gap: 12, flexWrap: 'wrap'
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flexWrap: 'wrap' }}>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)', minWidth: 76 }}>
+          {formatDateEs(m.fecha)}
+        </span>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: m.ambito_color }}>
+          {m.ambito_nombre.toUpperCase()}
+        </span>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#A09070' }}>
+          {m.cuenta_nombre ?? '—'}
+        </span>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)', padding: '2px 6px' }}>
+          Traspaso externo
+        </span>
+        <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-sm)', color: '#E8DCC8' }}>
+          → {m.tercero_nombre ?? '—'}
+        </span>
+        {m.concepto && (
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)' }}>· {m.concepto}</span>
+        )}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)', color: '#f87171' }}>{eur(m.importe)}</span>
+        <button onClick={onEdit} style={{ ...smallBtn, border: 'none', padding: 2 }}>Editar</button>
+        <button onClick={onDelete} style={{ ...smallBtn, border: 'none', padding: 2, color: '#f87171' }}>Borrar</button>
+      </div>
+    </div>
+  )
+}
+
+function TraspasoFormModal({
+  mode,
+  target,
+  ambitos,
+  cuentas,
+  onClose,
+  onSaved
+}: {
+  mode: 'create' | 'edit'
+  target: TraspasoEditTarget | null
+  ambitos: Ambito[]
+  cuentas: Cuenta[]
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [tipoTraspaso, setTipoTraspaso] = useState<'interno' | 'externo'>(target ? target.kind : 'interno')
+  const [cuentaOrigenId, setCuentaOrigenId] = useState<number | ''>(
+    target ? (target.kind === 'interno' ? target.salida.cuenta_id : target.m.cuenta_id) : ''
+  )
+  const [cuentaDestinoId, setCuentaDestinoId] = useState<number | ''>(target && target.kind === 'interno' ? target.entrada.cuenta_id : '')
+  const [terceroId, setTerceroId] = useState<number | ''>(target && target.kind === 'externo' ? (target.m.tercero_id ?? '') : '')
+  const [fecha, setFecha] = useState(
+    target ? (target.kind === 'interno' ? target.salida.fecha : target.m.fecha) : new Date().toISOString().slice(0, 10)
+  )
+  const [importe, setImporte] = useState(
+    target ? formatSaldo(Math.abs(Number(target.kind === 'interno' ? target.salida.importe : target.m.importe))) : ''
+  )
+  const [concepto, setConcepto] = useState(target ? (target.kind === 'interno' ? target.salida.concepto ?? '' : target.m.concepto ?? '') : '')
+
+  const [terceros, setTerceros] = useState<Tercero[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  const cuentaOrigen = cuentas.find((c) => c.id === cuentaOrigenId)
+  const ambitoDeOrigen = cuentaOrigen?.ambito_id
+  const cuentasDestinoPosibles = cuentas.filter((c) => c.ambito_id === ambitoDeOrigen && c.id !== cuentaOrigenId)
+
+  useEffect(() => {
+    if (tipoTraspaso !== 'externo' || !ambitoDeOrigen) {
+      setTerceros([])
+      return
+    }
+    fetch(`/api/finanzas/terceros?ambito_id=${ambitoDeOrigen}&activa=true`, { credentials: 'include' })
+      .then((r) => r.json())
+      .then((data) => setTerceros(data.terceros ?? []))
+      .catch(() => setTerceros([]))
+  }, [tipoTraspaso, ambitoDeOrigen])
+
+  async function submit() {
+    const importeNum = parseEsNumber(importe)
+    if (importeNum === null || importeNum <= 0) return setError('Importe inválido — debe ser mayor que 0')
+    if (!fecha) return setError('Fecha obligatoria')
+
+    if (mode === 'create') {
+      if (cuentaOrigenId === '') return setError('Selecciona una cuenta de origen')
+      if (tipoTraspaso === 'interno' && cuentaDestinoId === '') return setError('Selecciona una cuenta de destino')
+      if (tipoTraspaso === 'externo' && terceroId === '') return setError('Selecciona un destinatario')
+    } else if (target?.kind === 'externo' && terceroId === '') {
+      return setError('Selecciona un destinatario')
+    }
+
+    setSaving(true)
+    setError(null)
+    try {
+      let res: Response
+      if (mode === 'create') {
+        const body: Record<string, unknown> = {
+          tipo_traspaso: tipoTraspaso,
+          cuenta_origen_id: cuentaOrigenId,
+          fecha,
+          importe: importeNum,
+          concepto: concepto.trim() || null
+        }
+        if (tipoTraspaso === 'interno') body.cuenta_destino_id = cuentaDestinoId
+        else body.tercero_id = terceroId
+        res = await fetch('/api/finanzas/traspasos', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        })
+      } else {
+        const idOrGrupo = target!.kind === 'interno' ? target!.grupo : String(target!.m.id)
+        const body: Record<string, unknown> = { fecha, importe: importeNum, concepto: concepto.trim() || null }
+        if (target!.kind === 'externo') body.tercero_id = terceroId
+        res = await fetch(`/api/finanzas/traspasos/${idOrGrupo}`, {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        })
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setError(data.error ?? 'Error al guardar')
+        return
+      }
+      onSaved()
+    } catch {
+      setError('Error de red')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const cuentasPorAmbito = ambitos.map((a) => ({ ambito: a, cuentas: cuentas.filter((c) => c.ambito_id === a.id) }))
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }} onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: '#13100A', border: '1px solid rgba(200,168,64,0.25)', padding: 24, width: 440, maxWidth: '92vw', maxHeight: '88vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}
+      >
+        <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'var(--text-lg)', color: '#C8A840', letterSpacing: '0.08em' }}>
+          {mode === 'create' ? 'NUEVO TRASPASO' : 'EDITAR TRASPASO'}
+        </span>
+
+        {mode === 'create' ? (
+          <div>
+            <label style={labelStyle}>TIPO DE TRASPASO</label>
+            <div style={{ display: 'flex', gap: 0 }}>
+              {(['interno', 'externo'] as const).map((t, i) => (
+                <button
+                  key={t}
+                  onClick={() => { setTipoTraspaso(t); setCuentaDestinoId(''); setTerceroId('') }}
+                  style={{
+                    flex: 1, fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', padding: '8px 4px', cursor: 'pointer',
+                    color: tipoTraspaso === t ? '#C8A840' : 'var(--color-text-muted)',
+                    background: tipoTraspaso === t ? 'rgba(200,168,64,0.2)' : 'transparent',
+                    border: tipoTraspaso === t ? '1px solid #C8A840' : '1px solid rgba(200,168,64,0.15)',
+                    marginLeft: i === 0 ? 0 : -1
+                  }}
+                >
+                  {t === 'interno' ? 'Interno (entre mis cuentas)' : 'Externo (a alguien más)'}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
+            Traspaso {target!.kind === 'interno' ? 'interno' : 'externo'} (tipo no editable)
+          </div>
+        )}
+
+        {mode === 'create' ? (
+          <div>
+            <label style={labelStyle}>CUENTA DE ORIGEN</label>
+            <select
+              value={cuentaOrigenId}
+              onChange={(e) => { setCuentaOrigenId(e.target.value ? Number(e.target.value) : ''); setCuentaDestinoId(''); setTerceroId('') }}
+              style={inputStyle}
+            >
+              <option value="">Selecciona una cuenta</option>
+              {cuentasPorAmbito.map(({ ambito, cuentas: cs }) =>
+                cs.length > 0 ? (
+                  <optgroup key={ambito.id} label={ambito.nombre}>
+                    {cs.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  </optgroup>
+                ) : null
+              )}
+            </select>
+          </div>
+        ) : (
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
+            Cuenta de origen: <span style={{ color: '#C8A840' }}>{cuentaOrigen?.nombre ?? '—'}</span> (no editable)
+          </div>
+        )}
+
+        {tipoTraspaso === 'interno' ? (
+          mode === 'create' ? (
+            <div>
+              <label style={labelStyle}>CUENTA DE DESTINO (mismo ámbito)</label>
+              <select
+                value={cuentaDestinoId}
+                onChange={(e) => setCuentaDestinoId(e.target.value ? Number(e.target.value) : '')}
+                style={inputStyle}
+                disabled={!ambitoDeOrigen}
+              >
+                <option value="">Selecciona una cuenta</option>
+                {cuentasDestinoPosibles.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+              </select>
+              {!ambitoDeOrigen && (
+                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)' }}>Elige primero la cuenta de origen</span>
+              )}
+            </div>
+          ) : (
+            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
+              Cuenta de destino: <span style={{ color: '#C8A840' }}>{cuentas.find((c) => c.id === cuentaDestinoId)?.nombre ?? '—'}</span> (no editable)
+            </div>
+          )
+        ) : (
+          <div>
+            <label style={labelStyle}>DESTINATARIO (tercero)</label>
+            <select
+              value={terceroId}
+              onChange={(e) => setTerceroId(e.target.value ? Number(e.target.value) : '')}
+              style={inputStyle}
+              disabled={mode === 'create' && !ambitoDeOrigen}
+            >
+              <option value="">Selecciona un tercero</option>
+              {terceros.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+            </select>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)' }}>
+              Para dinero que ENTRA de fuera, regístralo como Ingreso, no como traspaso.
+            </span>
+          </div>
+        )}
+
+        <div>
+          <label style={labelStyle}>FECHA</label>
+          <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} style={inputStyle} />
+        </div>
+
+        <div>
+          <label style={labelStyle}>IMPORTE (siempre positivo)</label>
+          <input value={importe} onChange={(e) => setImporte(e.target.value)} placeholder="0,00" style={inputStyle} />
+        </div>
+
+        <div>
+          <label style={labelStyle}>CONCEPTO (opcional)</label>
+          <input value={concepto} onChange={(e) => setConcepto(e.target.value)} style={inputStyle} placeholder="Ej. Mover fondos a Caixa" />
+        </div>
+
+        {error && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#f87171' }}>{error}</span>}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button onClick={onClose} style={{ ...smallBtn, padding: '7px 16px' }}>Cancelar</button>
+          <button onClick={submit} disabled={saving} style={{ ...smallBtn, color: '#C8A840', borderColor: 'rgba(200,168,64,0.35)', padding: '7px 16px', opacity: saving ? 0.6 : 1 }}>
+            {saving ? 'Guardando...' : 'Guardar'}
+          </button>
+        </div>
       </div>
     </div>
   )

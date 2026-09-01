@@ -2663,6 +2663,11 @@ finanzasRoutes.get('/traspasos/:grupo', async (c) => {
     )
     if (result.rowCount === 0) return c.json({ error: 'Grupo de traspaso no encontrado' }, 404)
     return c.json({ patas: result.rows })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'query error' }, 500)
+  }
+})
+
 // ─── vista mensual (#743 pieza 3) ────────────────────────────────────────
 // Agregador de solo lectura para el resumen de cobertura mensual por
 // ámbito: disponible (mismo cálculo que /dashboard: saldo_calculado −

@@ -163,12 +163,44 @@ finanzasRoutes.get('/ambitos', async (c) => {
   if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
   try {
     const result = await finanzasDb.query(
-      `SELECT id, nombre, tipo, orden, color, lleva_contabilidad, lleva_fiscalidad, created_at, updated_at
+      `SELECT id, nombre, tipo, orden, color, lleva_contabilidad, lleva_fiscalidad, colchon_minimo, created_at, updated_at
        FROM ambitos ORDER BY orden`
     )
     return c.json({ ambitos: result.rows })
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'query error' }, 500)
+  }
+})
+
+// PATCH /api/finanzas/ambitos/:id/colchon — colchón mínimo de margen de
+// seguridad (30d) de ese ámbito, usado por el semáforo del dashboard y de
+// la vista mensual. Antes era una constante hardcodeada en el código
+// (COLCHON_MINIMO_PROVISIONAL); ahora vive en ambitos.colchon_minimo y se
+// edita desde aquí, por ámbito, sin tocar código ni BD a mano.
+finanzasRoutes.patch('/ambitos/:id/colchon', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const id = c.req.param('id')
+  if (!/^\d+$/.test(id)) return c.json({ error: 'id inválido' }, 400)
+
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Body inválido' }, 400)
+  const { colchon_minimo } = body as Record<string, unknown>
+
+  const colchonNum = parseNumeric(colchon_minimo)
+  if (colchonNum === null || colchonNum < 0) {
+    return c.json({ error: 'colchon_minimo es obligatorio y debe ser un número mayor o igual que 0' }, 400)
+  }
+
+  try {
+    const result = await finanzasDb.query(
+      `UPDATE ambitos SET colchon_minimo = $1, updated_at = now() WHERE id = $2
+       RETURNING id, nombre, tipo, orden, color, lleva_contabilidad, lleva_fiscalidad, colchon_minimo, created_at, updated_at`,
+      [colchonNum, id]
+    )
+    if (result.rowCount === 0) return c.json({ error: 'Ámbito no encontrado' }, 404)
+    return c.json({ ambito: result.rows[0] })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'update error' }, 500)
   }
 })
 
@@ -1042,20 +1074,6 @@ finanzasRoutes.patch('/deudas/:id', async (c) => {
 
 // ─── dashboard semanal (#713) ────────────────────────────────────────────
 
-// Umbral provisional de margen de seguridad (30 días) por ámbito. Todavía
-// NO hay configuración por UI (tarea futura, sin tabla nueva en #713) —
-// este es el ÚNICO sitio del código donde se define. Para cambiarlo, edita
-// este objeto. IDs de ambitos.id — ver 002_seed_ambitos.sql.
-const COLCHON_MINIMO_PROVISIONAL: Record<number, number> = {
-  1: 3000, // IMM CORE SYSTEM SL
-  2: 1000, // Ignacio Mínguez Montes
-  3: 500   // Familia / Hogar
-}
-const COLCHON_MINIMO_DEFAULT = 500
-function colchonMinimo(ambitoId: number): number {
-  return COLCHON_MINIMO_PROVISIONAL[ambitoId] ?? COLCHON_MINIMO_DEFAULT
-}
-
 function semaforoDe(margenSeguridad: number, colchon: number): 'rojo' | 'ambar' | 'verde' {
   if (margenSeguridad < 0) return 'rojo'
   if (margenSeguridad < colchon) return 'ambar'
@@ -1079,7 +1097,7 @@ finanzasRoutes.get('/dashboard', async (c) => {
 
   try {
     const [ambitosResult, cuentasResult, reservasResult, previstosResult, deudasResult, pendientesResult] = await Promise.all([
-      finanzasDb.query('SELECT id, nombre, tipo, orden, color FROM ambitos ORDER BY orden'),
+      finanzasDb.query('SELECT id, nombre, tipo, orden, color, colchon_minimo FROM ambitos ORDER BY orden'),
       // saldo_total ya NO sale del snapshot manual de saldos_semanales
       // (v_cuentas_saldo_actual, #712) — ese método quedó obsoleto en
       // cuanto el flujo de caja real (apertura + movimientos, #743 pieza
@@ -1167,7 +1185,7 @@ finanzasRoutes.get('/dashboard', async (c) => {
       const margen_seguridad = disponible_tras_reservas - pagos_proximos_30d
       const escenario_esperado = disponible_tras_reservas + cobros_esperados_30d - pagos_proximos_30d
 
-      const colchon_minimo = colchonMinimo(amb.id)
+      const colchon_minimo = amb.colchon_minimo !== null ? Number(amb.colchon_minimo) : 0
       const semaforo = semaforoDe(margen_seguridad, colchon_minimo)
 
       const toVencItem = (m: (typeof previstosAmbito)[number]): VencItem => ({
@@ -1209,7 +1227,6 @@ finanzasRoutes.get('/dashboard', async (c) => {
         margen_seguridad,
         escenario_esperado,
         colchon_minimo,
-        colchon_provisional: true,
         semaforo,
         vencimientos_7d: {
           pagos: pagos7,
@@ -2694,9 +2711,9 @@ finanzasRoutes.get('/traspasos/:grupo', async (c) => {
 // ámbito: disponible (mismo cálculo que /dashboard: saldo_calculado −
 // reservas activas, vía v_cuentas_saldo_calculado — nunca saldos_semanales)
 // vs total de obligaciones_instancias PENDIENTES cuyo periodo cae en el mes
-// pedido. Reutiliza colchonMinimo()/semaforoDe() del dashboard semanal
-// (#713) tal cual: mismo umbral provisional, misma clasificación
-// roja/ámbar/verde — ver esas funciones más arriba en este archivo.
+// pedido. Reutiliza semaforoDe() del dashboard semanal (#713) tal cual:
+// mismo colchón mínimo (ambitos.colchon_minimo, editable por ámbito),
+// misma clasificación roja/ámbar/verde — ver esa función más arriba.
 const MES_RE = /^\d{4}-\d{2}$/
 
 // GET /api/finanzas/vista-mensual?mes=YYYY-MM
@@ -2709,7 +2726,7 @@ finanzasRoutes.get('/vista-mensual', async (c) => {
 
   try {
     const [ambitosResult, cuentasResult, reservasResult, obligacionesResult] = await Promise.all([
-      finanzasDb.query('SELECT id, nombre, orden, color FROM ambitos ORDER BY orden'),
+      finanzasDb.query('SELECT id, nombre, orden, color, colchon_minimo FROM ambitos ORDER BY orden'),
       finanzasDb.query(
         `SELECT c.id, c.ambito_id, v.saldo_calculado, v.requiere_saldo_apertura
          FROM cuentas_financieras c
@@ -2755,7 +2772,7 @@ finanzasRoutes.get('/vista-mensual', async (c) => {
       const obligaciones_mes_count = oblRow ? Number(oblRow.n) : 0
 
       const margen = disponible - obligaciones_mes_total
-      const colchon_minimo = colchonMinimo(amb.id)
+      const colchon_minimo = amb.colchon_minimo !== null ? Number(amb.colchon_minimo) : 0
       const semaforo = semaforoDe(margen, colchon_minimo)
 
       return {
@@ -2771,7 +2788,6 @@ finanzasRoutes.get('/vista-mensual', async (c) => {
         obligaciones_mes_count,
         margen,
         colchon_minimo,
-        colchon_provisional: true,
         semaforo
       }
     })

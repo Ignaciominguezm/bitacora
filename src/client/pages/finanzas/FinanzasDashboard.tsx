@@ -40,7 +40,6 @@ interface AmbitoDashboard {
   margen_seguridad: number
   escenario_esperado: number
   colchon_minimo: number
-  colchon_provisional: boolean
   semaforo: 'rojo' | 'ambar' | 'verde'
   vencimientos_7d: { pagos: VencItem[]; cobros: VencItem[]; total_pagos_7d: number; total_cobros_7d: number }
   riesgo_7_dias: boolean
@@ -289,7 +288,7 @@ function AmbitoCard({ amb }: { amb: AmbitoDashboard }) {
               <div style={{ width: 9, height: 9, borderRadius: '50%', background: semColor, flexShrink: 0 }} />
             </div>
             <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)' }}>
-              umbral provisional / pendiente de configurar: {eur(amb.colchon_minimo)}
+              colchón mínimo: {eur(amb.colchon_minimo)}
             </span>
           </div>
 

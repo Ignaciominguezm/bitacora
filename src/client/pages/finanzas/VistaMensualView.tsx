@@ -22,7 +22,6 @@ interface CoberturaAmbito {
   obligaciones_mes_count: number
   margen: number
   colchon_minimo: number
-  colchon_provisional: boolean
   semaforo: 'rojo' | 'ambar' | 'verde'
 }
 
@@ -321,7 +320,7 @@ export function VistaMensualView({ ambitos }: { ambitos: Ambito[] }) {
       </div>
 
       {/* 1. Resumen de cobertura — por ámbito, separados */}
-      <ResumenCobertura data={cobertura} loading={loadingCobertura} error={coberturaError} />
+      <ResumenCobertura data={cobertura} loading={loadingCobertura} error={coberturaError} onColchonSaved={() => fetchCobertura(mes)} />
 
       {/* 2. Obligaciones del mes — destacado, no plegable */}
       <ObligacionesDelMes
@@ -356,7 +355,17 @@ export function VistaMensualView({ ambitos }: { ambitos: Ambito[] }) {
   )
 }
 
-function ResumenCobertura({ data, loading, error }: { data: CoberturaAmbito[]; loading: boolean; error: string | null }) {
+function ResumenCobertura({
+  data,
+  loading,
+  error,
+  onColchonSaved
+}: {
+  data: CoberturaAmbito[]
+  loading: boolean
+  error: string | null
+  onColchonSaved: () => void
+}) {
   if (loading) {
     return <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-base)', color: 'var(--color-text-muted)' }}>Cargando cobertura...</div>
   }
@@ -393,6 +402,7 @@ function ResumenCobertura({ data, loading, error }: { data: CoberturaAmbito[]; l
             <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 'var(--text-md)', color: '#A09070' }}>
               {mensajeCobertura(a)}
             </div>
+            <ColchonEditor ambitoId={a.id} colchonActual={a.colchon_minimo} onSaved={onColchonSaved} />
             {a.saldo_incompleto && (
               <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#facc15', border: '1px solid rgba(250,204,21,0.35)', padding: '5px 10px' }}>
                 ⚠ Saldo incompleto: {a.cuentas_sin_apertura_n} cuenta{a.cuentas_sin_apertura_n !== 1 ? 's' : ''} sin saldo de apertura este año — el disponible NO {a.cuentas_sin_apertura_n !== 1 ? 'las' : 'la'} incluye.
@@ -404,6 +414,83 @@ function ResumenCobertura({ data, loading, error }: { data: CoberturaAmbito[]; l
       {data.length === 0 && (
         <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>Sin ámbitos configurados.</div>
       )}
+    </div>
+  )
+}
+
+// Colchón mínimo de margen de seguridad (30d) de este ámbito — el umbral
+// que separa AJUSTADO de CUBIERTO en el semáforo. Antes era una constante
+// fija en el código; ahora vive en ambitos.colchon_minimo y se edita aquí,
+// por ámbito, sin tocar código ni BD.
+function ColchonEditor({ ambitoId, colchonActual, onSaved }: { ambitoId: number; colchonActual: number; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false)
+  const [valor, setValor] = useState(() => formatSaldo(colchonActual))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!editing) setValor(formatSaldo(colchonActual))
+  }, [colchonActual, editing])
+
+  async function guardar() {
+    const num = parseEsNumber(valor)
+    if (num === null || num < 0) {
+      setError('Importe inválido')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/finanzas/ambitos/${ambitoId}/colchon`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ colchon_minimo: num })
+      })
+      if (res.ok) {
+        setEditing(false)
+        onSaved()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setError(data.error ?? 'Error al guardar')
+      }
+    } catch {
+      setError('Error de red')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!editing) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)' }}>
+          colchón mínimo: {eur(colchonActual)}
+        </span>
+        <button onClick={() => setEditing(true)} style={{ ...smallBtn, padding: '1px 8px' }}>Editar</button>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)' }}>colchón mínimo:</span>
+      <input
+        value={valor}
+        onChange={(e) => setValor(e.target.value)}
+        placeholder="0,00"
+        style={{ ...inputStyle, width: 100, fontSize: 'var(--text-xs)', padding: '3px 6px' }}
+      />
+      <button onClick={guardar} disabled={saving} style={{ ...smallBtn, padding: '1px 8px', color: '#C8A840', borderColor: 'rgba(200,168,64,0.35)' }}>
+        {saving ? '...' : 'Guardar'}
+      </button>
+      <button
+        onClick={() => { setEditing(false); setError(null); setValor(formatSaldo(colchonActual)) }}
+        style={{ ...smallBtn, padding: '1px 8px' }}
+      >
+        Cancelar
+      </button>
+      {error && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#f87171' }}>{error}</span>}
     </div>
   )
 }

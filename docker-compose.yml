@@ -6,8 +6,20 @@ services:
     ports:
       - "3006:3006"
     env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - ignacio-net
+
+  migrator:
+    image: ghcr.io/ignaciominguezm/bitacora:latest
+    command: ["node", "dist/migrate.js"]
+    env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - ignacio-net
+    restart: "no"
 
 networks:
   ignacio-net:

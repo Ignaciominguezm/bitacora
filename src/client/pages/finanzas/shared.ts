@@ -6,6 +6,7 @@ export interface Ambito {
   color: string
   lleva_contabilidad: boolean
   lleva_fiscalidad: boolean
+  colchon_minimo: string | null
 }
 
 export function hexToRgba(hex: string, alpha: number): string {

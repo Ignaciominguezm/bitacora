@@ -2951,3 +2951,558 @@ finanzasRoutes.delete('/traspasos/:grupoOId', async (c) => {
 
   return c.json({ error: 'Parámetro inválido: debe ser un grupo_traspaso (UUID) o un id de movimiento' }, 400)
 })
+
+// ─── obligaciones fiscales (#715) ────────────────────────────────────────
+// "Hecho, regla y decisión son objetos distintos." Este tablero RECUERDA,
+// DOCUMENTA y da EVIDENCIA — nunca calcula importes fiscales ni decide
+// calificaciones (eso es revisión profesional). No genera instancias
+// automáticamente: el usuario las crea, porque las reglas de plazo son
+// delicadas y una fórmula fija podría fallar. Doble control: marcar
+// 'presentada' o 'pagada' exige un revisor registrado — sin eso, 400.
+// Las lecturas se hacen contra obligaciones_fiscales / _instancias /
+// _evidencias directamente (no contra v_obligaciones_fiscales): el ámbito
+// se resuelve aquí con un JOIN propio y explícito, igual que en el resto
+// del módulo — así el resultado no depende de las columnas exactas de una
+// vista no comiteada en este repo.
+
+const BLOQUES_FISCAL = ['A', 'B', 'C', 'D'] as const
+const isBloqueFiscal = (v: unknown): v is (typeof BLOQUES_FISCAL)[number] => typeof v === 'string' && (BLOQUES_FISCAL as readonly string[]).includes(v)
+
+const TIPOS_OBLIGACION_FISCAL = ['fiscal', 'contable', 'mercantil', 'laboral', 'censal', 'adyacente'] as const
+const isTipoObligacionFiscal = (v: unknown): v is (typeof TIPOS_OBLIGACION_FISCAL)[number] =>
+  typeof v === 'string' && (TIPOS_OBLIGACION_FISCAL as readonly string[]).includes(v)
+
+const APLICABILIDADES = ['confirmada', 'probable', 'condicional', 'pendiente_validar', 'no_aplica'] as const
+const isAplicabilidad = (v: unknown): v is (typeof APLICABILIDADES)[number] => typeof v === 'string' && (APLICABILIDADES as readonly string[]).includes(v)
+
+const PRIORIDADES_FISCAL = ['critica', 'alta', 'media', 'baja'] as const
+const isPrioridadFiscal = (v: unknown): v is (typeof PRIORIDADES_FISCAL)[number] => typeof v === 'string' && (PRIORIDADES_FISCAL as readonly string[]).includes(v)
+
+const PERIODICIDADES_FISCAL = ['mensual', 'trimestral', 'anual', 'segun_evento', 'continua', 'puntual'] as const
+const isPeriodicidadFiscal = (v: unknown): v is (typeof PERIODICIDADES_FISCAL)[number] =>
+  typeof v === 'string' && (PERIODICIDADES_FISCAL as readonly string[]).includes(v)
+
+const ESTADOS_INSTANCIA_FISCAL = ['pendiente', 'en_preparacion', 'preparada', 'revisada', 'presentada', 'pagada', 'archivada', 'no_aplica'] as const
+const isEstadoInstanciaFiscal = (v: unknown): v is (typeof ESTADOS_INSTANCIA_FISCAL)[number] =>
+  typeof v === 'string' && (ESTADOS_INSTANCIA_FISCAL as readonly string[]).includes(v)
+
+const OBLIGACION_FISCAL_COLS = `o.id, o.ambito_id, o.codigo, o.nombre, o.modelo, o.bloque, o.tipo, o.organismo,
+  o.aplicabilidad, o.prioridad, o.periodicidad, o.regla_plazo, o.evidencia_min, o.responsable, o.condicion,
+  o.aviso, o.activa, o.created_at, o.updated_at`
+
+const INSTANCIA_FISCAL_COLS = `i.id, i.obligacion_id, TO_CHAR(i.periodo, 'YYYY-MM-DD') AS periodo, i.periodo_etiqueta,
+  TO_CHAR(i.fecha_apertura, 'YYYY-MM-DD') AS fecha_apertura,
+  TO_CHAR(i.fecha_limite, 'YYYY-MM-DD') AS fecha_limite,
+  TO_CHAR(i.fecha_domiciliacion, 'YYYY-MM-DD') AS fecha_domiciliacion,
+  i.estado, i.importe_estimado, i.csv, i.nrc, i.revisor,
+  TO_CHAR(i.fecha_revision, 'YYYY-MM-DD') AS fecha_revision, i.notas, i.created_at, i.updated_at`
+
+const EVIDENCIA_FISCAL_COLS = `id, instancia_id, descripcion, referencia, TO_CHAR(fecha_origen, 'YYYY-MM-DD') AS fecha_origen, created_at`
+
+// GET /api/finanzas/fiscal/obligaciones?ambito_id=&bloque=&aplicabilidad=
+finanzasRoutes.get('/fiscal/obligaciones', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const ambitoId = c.req.query('ambito_id')
+  const bloque = c.req.query('bloque')
+  const aplicabilidad = c.req.query('aplicabilidad')
+
+  const conditions: string[] = []
+  const params: unknown[] = []
+  if (ambitoId !== undefined) {
+    if (!/^\d+$/.test(ambitoId)) return c.json({ error: 'ambito_id inválido' }, 400)
+    params.push(Number(ambitoId))
+    conditions.push(`o.ambito_id = $${params.length}`)
+  }
+  if (bloque !== undefined) {
+    if (!isBloqueFiscal(bloque)) return c.json({ error: `bloque debe ser uno de: ${BLOQUES_FISCAL.join(', ')}` }, 400)
+    params.push(bloque)
+    conditions.push(`o.bloque = $${params.length}`)
+  }
+  if (aplicabilidad !== undefined) {
+    if (!isAplicabilidad(aplicabilidad)) return c.json({ error: `aplicabilidad debe ser una de: ${APLICABILIDADES.join(', ')}` }, 400)
+    params.push(aplicabilidad)
+    conditions.push(`o.aplicabilidad = $${params.length}`)
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+
+  try {
+    const result = await finanzasDb.query(
+      `SELECT ${OBLIGACION_FISCAL_COLS}, a.nombre AS ambito_nombre, a.color AS ambito_color, a.orden AS ambito_orden
+       FROM obligaciones_fiscales o
+       JOIN ambitos a ON a.id = o.ambito_id
+       ${where}
+       ORDER BY a.orden, o.bloque, o.nombre`,
+      params
+    )
+    return c.json({ obligaciones: result.rows })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'query error' }, 500)
+  }
+})
+
+// POST /api/finanzas/fiscal/obligaciones — alta manual (bloque B/C/D que el
+// usuario quiera añadir). codigo siempre NULL: el slug es solo del catálogo
+// sembrado.
+finanzasRoutes.post('/fiscal/obligaciones', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Body inválido' }, 400)
+  const { ambito_id, nombre, modelo, bloque, tipo, organismo, aplicabilidad, prioridad, periodicidad, regla_plazo, evidencia_min, responsable, condicion, aviso } =
+    body as Record<string, unknown>
+
+  if (typeof ambito_id !== 'number' || !Number.isInteger(ambito_id)) return c.json({ error: 'ambito_id es obligatorio' }, 400)
+  if (typeof nombre !== 'string' || nombre.trim() === '') return c.json({ error: 'nombre es obligatorio' }, 400)
+  if (!isBloqueFiscal(bloque)) return c.json({ error: `bloque debe ser uno de: ${BLOQUES_FISCAL.join(', ')}` }, 400)
+  if (!isTipoObligacionFiscal(tipo)) return c.json({ error: `tipo debe ser uno de: ${TIPOS_OBLIGACION_FISCAL.join(', ')}` }, 400)
+  if (!isAplicabilidad(aplicabilidad)) return c.json({ error: `aplicabilidad debe ser una de: ${APLICABILIDADES.join(', ')}` }, 400)
+  if (!isPrioridadFiscal(prioridad)) return c.json({ error: `prioridad debe ser una de: ${PRIORIDADES_FISCAL.join(', ')}` }, 400)
+  if (!isPeriodicidadFiscal(periodicidad)) return c.json({ error: `periodicidad debe ser una de: ${PERIODICIDADES_FISCAL.join(', ')}` }, 400)
+
+  const optionalText = (v: unknown, campo: string): string | null | undefined => {
+    if (v === undefined) return undefined
+    if (v === null || typeof v === 'string') return v === null ? null : v
+    throw new Error(`${campo} debe ser texto`)
+  }
+
+  let modeloVal: string | null, organismoVal: string | null, reglaPlazoVal: string | null
+  let evidenciaMinVal: string | null, responsableVal: string | null, condicionVal: string | null, avisoVal: string | null
+  try {
+    modeloVal = optionalText(modelo, 'modelo') ?? null
+    organismoVal = optionalText(organismo, 'organismo') ?? null
+    reglaPlazoVal = optionalText(regla_plazo, 'regla_plazo') ?? null
+    evidenciaMinVal = optionalText(evidencia_min, 'evidencia_min') ?? null
+    responsableVal = optionalText(responsable, 'responsable') ?? null
+    condicionVal = optionalText(condicion, 'condicion') ?? null
+    avisoVal = optionalText(aviso, 'aviso') ?? null
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'campo inválido' }, 400)
+  }
+
+  try {
+    const ambitoExists = await finanzasDb.query('SELECT 1 FROM ambitos WHERE id = $1', [ambito_id])
+    if (ambitoExists.rowCount === 0) return c.json({ error: 'ambito_id no existe' }, 400)
+
+    const result = await finanzasDb.query(
+      `INSERT INTO obligaciones_fiscales
+         (ambito_id, codigo, nombre, modelo, bloque, tipo, organismo, aplicabilidad, prioridad, periodicidad, regla_plazo, evidencia_min, responsable, condicion, aviso, activa)
+       VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, true)
+       RETURNING ${OBLIGACION_FISCAL_COLS.replaceAll('o.', '')}`,
+      [ambito_id, nombre.trim(), modeloVal, bloque, tipo, organismoVal, aplicabilidad, prioridad, periodicidad, reglaPlazoVal, evidenciaMinVal, responsableVal, condicionVal, avisoVal]
+    )
+    return c.json({ obligacion: result.rows[0] }, 201)
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'insert error' }, 500)
+  }
+})
+
+// PATCH /api/finanzas/fiscal/obligaciones/:id — aplicabilidad, prioridad,
+// activa, aviso. (El esquema del catálogo no tiene columna "notas" propia
+// — "aviso" es su campo de texto libre; ver nota en la entrega.)
+finanzasRoutes.patch('/fiscal/obligaciones/:id', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const id = c.req.param('id')
+  if (!/^\d+$/.test(id)) return c.json({ error: 'id inválido' }, 400)
+
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Body inválido' }, 400)
+  const { aplicabilidad, prioridad, activa, aviso } = body as Record<string, unknown>
+
+  const sets: string[] = []
+  const params: unknown[] = []
+
+  if (aplicabilidad !== undefined) {
+    if (!isAplicabilidad(aplicabilidad)) return c.json({ error: `aplicabilidad debe ser una de: ${APLICABILIDADES.join(', ')}` }, 400)
+    params.push(aplicabilidad)
+    sets.push(`aplicabilidad = $${params.length}`)
+  }
+  if (prioridad !== undefined) {
+    if (!isPrioridadFiscal(prioridad)) return c.json({ error: `prioridad debe ser una de: ${PRIORIDADES_FISCAL.join(', ')}` }, 400)
+    params.push(prioridad)
+    sets.push(`prioridad = $${params.length}`)
+  }
+  if (activa !== undefined) {
+    if (typeof activa !== 'boolean') return c.json({ error: 'activa debe ser booleano' }, 400)
+    params.push(activa)
+    sets.push(`activa = $${params.length}`)
+  }
+  if (aviso !== undefined) {
+    if (aviso !== null && typeof aviso !== 'string') return c.json({ error: 'aviso debe ser texto' }, 400)
+    params.push(aviso)
+    sets.push(`aviso = $${params.length}`)
+  }
+
+  if (sets.length === 0) return c.json({ error: 'Nada que actualizar' }, 400)
+  sets.push('updated_at = now()')
+  params.push(id)
+
+  try {
+    const result = await finanzasDb.query(
+      `UPDATE obligaciones_fiscales SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING ${OBLIGACION_FISCAL_COLS.replaceAll('o.', '')}`,
+      params
+    )
+    if (result.rowCount === 0) return c.json({ error: 'Obligación no encontrada' }, 404)
+    return c.json({ obligacion: result.rows[0] })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'update error' }, 500)
+  }
+})
+
+// GET /api/finanzas/fiscal/instancias?ambito_id=&obligacion_id=&estado=&desde=&hasta=
+// obligacion_id no estaba en el enunciado pero hace falta para poder listar
+// "las instancias de ESTA obligación" desde la vista de catálogo — sin él,
+// gestionar los vencimientos de una obligación concreta exigiría filtrar
+// del lado del cliente sobre TODAS las instancias del ámbito.
+finanzasRoutes.get('/fiscal/instancias', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const ambitoId = c.req.query('ambito_id')
+  const obligacionId = c.req.query('obligacion_id')
+  const estado = c.req.query('estado')
+  const desde = c.req.query('desde')
+  const hasta = c.req.query('hasta')
+
+  const conditions: string[] = []
+  const params: unknown[] = []
+  if (ambitoId !== undefined) {
+    if (!/^\d+$/.test(ambitoId)) return c.json({ error: 'ambito_id inválido' }, 400)
+    params.push(Number(ambitoId))
+    conditions.push(`a.id = $${params.length}`)
+  }
+  if (obligacionId !== undefined) {
+    if (!/^\d+$/.test(obligacionId)) return c.json({ error: 'obligacion_id inválido' }, 400)
+    params.push(Number(obligacionId))
+    conditions.push(`i.obligacion_id = $${params.length}`)
+  }
+  if (estado !== undefined) {
+    if (!isEstadoInstanciaFiscal(estado)) return c.json({ error: `estado debe ser uno de: ${ESTADOS_INSTANCIA_FISCAL.join(', ')}` }, 400)
+    params.push(estado)
+    conditions.push(`i.estado = $${params.length}`)
+  }
+  if (desde !== undefined) {
+    if (!ISO_DATE_RE.test(desde)) return c.json({ error: 'desde debe tener formato YYYY-MM-DD' }, 400)
+    params.push(desde)
+    conditions.push(`i.fecha_limite >= $${params.length}`)
+  }
+  if (hasta !== undefined) {
+    if (!ISO_DATE_RE.test(hasta)) return c.json({ error: 'hasta debe tener formato YYYY-MM-DD' }, 400)
+    params.push(hasta)
+    conditions.push(`i.fecha_limite <= $${params.length}`)
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+
+  try {
+    const result = await finanzasDb.query(
+      `SELECT ${INSTANCIA_FISCAL_COLS},
+              o.nombre AS obligacion_nombre, o.modelo, o.bloque, o.prioridad,
+              a.id AS ambito_id, a.nombre AS ambito_nombre, a.color AS ambito_color, a.orden AS ambito_orden
+       FROM obligaciones_fiscales_instancias i
+       JOIN obligaciones_fiscales o ON o.id = i.obligacion_id
+       JOIN ambitos a ON a.id = o.ambito_id
+       ${where}
+       ORDER BY i.fecha_limite`,
+      params
+    )
+    return c.json({ instancias: result.rows })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'query error' }, 500)
+  }
+})
+
+// POST /api/finanzas/fiscal/instancias — el usuario crea el vencimiento
+// concreto que quiere controlar. Sin generación automática: las reglas de
+// plazo son delicadas (el documento maestro pide explícitamente no
+// automatizarlas con fórmulas fijas).
+finanzasRoutes.post('/fiscal/instancias', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Body inválido' }, 400)
+  const { obligacion_id, periodo, periodo_etiqueta, fecha_limite, fecha_domiciliacion, importe_estimado } = body as Record<string, unknown>
+
+  if (typeof obligacion_id !== 'number' || !Number.isInteger(obligacion_id)) return c.json({ error: 'obligacion_id es obligatorio' }, 400)
+  if (typeof periodo !== 'string' || !ISO_DATE_RE.test(periodo)) return c.json({ error: 'periodo debe tener formato YYYY-MM-DD' }, 400)
+  if (typeof periodo_etiqueta !== 'string' || periodo_etiqueta.trim() === '') return c.json({ error: 'periodo_etiqueta es obligatoria' }, 400)
+  if (typeof fecha_limite !== 'string' || !ISO_DATE_RE.test(fecha_limite)) return c.json({ error: 'fecha_limite debe tener formato YYYY-MM-DD' }, 400)
+  if (fecha_domiciliacion !== undefined && fecha_domiciliacion !== null && (typeof fecha_domiciliacion !== 'string' || !ISO_DATE_RE.test(fecha_domiciliacion))) {
+    return c.json({ error: 'fecha_domiciliacion debe tener formato YYYY-MM-DD' }, 400)
+  }
+  let importeNum: number | null = null
+  if (importe_estimado !== undefined && importe_estimado !== null) {
+    importeNum = parseNumeric(importe_estimado)
+    if (importeNum === null) return c.json({ error: 'importe_estimado debe ser numérico' }, 400)
+  }
+
+  try {
+    const oblExists = await finanzasDb.query('SELECT 1 FROM obligaciones_fiscales WHERE id = $1', [obligacion_id])
+    if (oblExists.rowCount === 0) return c.json({ error: 'obligacion_id no existe' }, 400)
+
+    const result = await finanzasDb.query(
+      `INSERT INTO obligaciones_fiscales_instancias (obligacion_id, periodo, periodo_etiqueta, fecha_limite, fecha_domiciliacion, importe_estimado, estado)
+       VALUES ($1, $2, $3, $4, $5, $6, 'pendiente')
+       RETURNING ${INSTANCIA_FISCAL_COLS.replaceAll('i.', '')}`,
+      [obligacion_id, periodo, periodo_etiqueta.trim(), fecha_limite, fecha_domiciliacion ?? null, importeNum]
+    )
+    return c.json({ instancia: result.rows[0] }, 201)
+  } catch (err) {
+    if (isUniqueViolation(err)) return c.json({ error: 'Ya existe una instancia de esa obligación para ese periodo' }, 409)
+    return c.json({ error: err instanceof Error ? err.message : 'insert error' }, 500)
+  }
+})
+
+// PATCH /api/finanzas/fiscal/instancias/:id — edita campos y avanza el
+// estado. DOBLE CONTROL: para que el estado (ya sea el nuevo o el que ya
+// tuviera si no se manda estado en este PATCH) quede en 'presentada' o
+// 'pagada' hace falta un revisor no vacío — ya guardado o mandado en esta
+// misma petición. Si no lo hay, 400. Si pasa a presentada/pagada y no se
+// manda fecha_revision explícita, se registra hoy automáticamente (deja
+// constancia de cuándo se hizo la revisión).
+finanzasRoutes.patch('/fiscal/instancias/:id', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const id = c.req.param('id')
+  if (!/^\d+$/.test(id)) return c.json({ error: 'id inválido' }, 400)
+
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Body inválido' }, 400)
+  const { periodo_etiqueta, fecha_limite, fecha_domiciliacion, importe_estimado, estado, csv, nrc, revisor, fecha_revision, notas } =
+    body as Record<string, unknown>
+
+  try {
+    const existing = await finanzasDb.query('SELECT estado, revisor FROM obligaciones_fiscales_instancias WHERE id = $1', [id])
+    if (existing.rowCount === 0) return c.json({ error: 'Instancia no encontrada' }, 404)
+    const estadoExistente = existing.rows[0].estado as string
+    const revisorExistente = existing.rows[0].revisor as string | null
+
+    const sets: string[] = []
+    const params: unknown[] = []
+
+    if (periodo_etiqueta !== undefined) {
+      if (typeof periodo_etiqueta !== 'string' || periodo_etiqueta.trim() === '') return c.json({ error: 'periodo_etiqueta no puede estar vacía' }, 400)
+      params.push(periodo_etiqueta.trim())
+      sets.push(`periodo_etiqueta = $${params.length}`)
+    }
+    if (fecha_limite !== undefined) {
+      if (typeof fecha_limite !== 'string' || !ISO_DATE_RE.test(fecha_limite)) return c.json({ error: 'fecha_limite debe tener formato YYYY-MM-DD' }, 400)
+      params.push(fecha_limite)
+      sets.push(`fecha_limite = $${params.length}`)
+    }
+    if (fecha_domiciliacion !== undefined) {
+      if (fecha_domiciliacion !== null && (typeof fecha_domiciliacion !== 'string' || !ISO_DATE_RE.test(fecha_domiciliacion))) {
+        return c.json({ error: 'fecha_domiciliacion debe tener formato YYYY-MM-DD' }, 400)
+      }
+      params.push(fecha_domiciliacion)
+      sets.push(`fecha_domiciliacion = $${params.length}`)
+    }
+    if (importe_estimado !== undefined) {
+      if (importe_estimado === null) {
+        params.push(null)
+      } else {
+        const n = parseNumeric(importe_estimado)
+        if (n === null) return c.json({ error: 'importe_estimado debe ser numérico' }, 400)
+        params.push(n)
+      }
+      sets.push(`importe_estimado = $${params.length}`)
+    }
+    if (csv !== undefined) {
+      if (csv !== null && typeof csv !== 'string') return c.json({ error: 'csv debe ser texto' }, 400)
+      params.push(csv)
+      sets.push(`csv = $${params.length}`)
+    }
+    if (nrc !== undefined) {
+      if (nrc !== null && typeof nrc !== 'string') return c.json({ error: 'nrc debe ser texto' }, 400)
+      params.push(nrc)
+      sets.push(`nrc = $${params.length}`)
+    }
+    if (notas !== undefined) {
+      if (notas !== null && typeof notas !== 'string') return c.json({ error: 'notas debe ser texto' }, 400)
+      params.push(notas)
+      sets.push(`notas = $${params.length}`)
+    }
+
+    // revisorFinal: el que queda tras esta petición (mandado ahora, o el ya guardado).
+    let revisorFinal = revisorExistente
+    if (revisor !== undefined) {
+      if (revisor !== null && typeof revisor !== 'string') return c.json({ error: 'revisor debe ser texto' }, 400)
+      revisorFinal = typeof revisor === 'string' && revisor.trim() !== '' ? revisor.trim() : null
+      params.push(revisorFinal)
+      sets.push(`revisor = $${params.length}`)
+    }
+
+    let fechaRevisionValue: string | null | undefined
+    if (fecha_revision !== undefined) {
+      if (fecha_revision !== null && (typeof fecha_revision !== 'string' || !ISO_DATE_RE.test(fecha_revision))) {
+        return c.json({ error: 'fecha_revision debe tener formato YYYY-MM-DD' }, 400)
+      }
+      fechaRevisionValue = fecha_revision as string | null
+    }
+
+    const estadoFinal = estado !== undefined ? estado : estadoExistente
+    if (estado !== undefined) {
+      if (!isEstadoInstanciaFiscal(estado)) return c.json({ error: `estado debe ser uno de: ${ESTADOS_INSTANCIA_FISCAL.join(', ')}` }, 400)
+      params.push(estado)
+      sets.push(`estado = $${params.length}`)
+    }
+
+    // Doble control: sea porque este PATCH pone el estado en presentada/pagada,
+    // sea porque ya estaba así y este PATCH está tocando el revisor — nunca
+    // debe quedar un registro presentada/pagada sin revisor.
+    if ((estadoFinal === 'presentada' || estadoFinal === 'pagada') && !revisorFinal) {
+      return c.json({ error: `Para que quede en '${estadoFinal}' hace falta registrar quién lo revisó (revisor) — control de doble verificación` }, 400)
+    }
+    if (estado !== undefined && (estado === 'presentada' || estado === 'pagada') && fechaRevisionValue === undefined) {
+      fechaRevisionValue = new Date().toISOString().slice(0, 10)
+    }
+    if (fechaRevisionValue !== undefined) {
+      params.push(fechaRevisionValue)
+      sets.push(`fecha_revision = $${params.length}`)
+    }
+
+    if (sets.length === 0) return c.json({ error: 'Nada que actualizar' }, 400)
+    sets.push('updated_at = now()')
+    params.push(id)
+
+    const result = await finanzasDb.query(
+      `UPDATE obligaciones_fiscales_instancias SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING ${INSTANCIA_FISCAL_COLS.replaceAll('i.', '')}`,
+      params
+    )
+    return c.json({ instancia: result.rows[0] })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'update error' }, 500)
+  }
+})
+
+// DELETE /api/finanzas/fiscal/instancias/:id — borrado físico; CASCADE se
+// lleva sus evidencias.
+finanzasRoutes.delete('/fiscal/instancias/:id', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const id = c.req.param('id')
+  if (!/^\d+$/.test(id)) return c.json({ error: 'id inválido' }, 400)
+
+  try {
+    const result = await finanzasDb.query('DELETE FROM obligaciones_fiscales_instancias WHERE id = $1', [id])
+    if (result.rowCount === 0) return c.json({ error: 'Instancia no encontrada' }, 404)
+    return c.json({ ok: true })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'delete error' }, 500)
+  }
+})
+
+// GET /api/finanzas/fiscal/instancias/:id/evidencias
+finanzasRoutes.get('/fiscal/instancias/:id/evidencias', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const id = c.req.param('id')
+  if (!/^\d+$/.test(id)) return c.json({ error: 'id inválido' }, 400)
+
+  try {
+    const result = await finanzasDb.query(
+      `SELECT ${EVIDENCIA_FISCAL_COLS} FROM obligaciones_fiscales_evidencias WHERE instancia_id = $1 ORDER BY created_at`,
+      [id]
+    )
+    return c.json({ evidencias: result.rows })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'query error' }, 500)
+  }
+})
+
+// POST /api/finanzas/fiscal/instancias/:id/evidencias — MVP: metadatos y
+// una referencia textual (nombre de fichero, URL, o el propio CSV/NRC).
+// No hay subida real de ficheros todavía.
+finanzasRoutes.post('/fiscal/instancias/:id/evidencias', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const id = c.req.param('id')
+  if (!/^\d+$/.test(id)) return c.json({ error: 'id inválido' }, 400)
+
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Body inválido' }, 400)
+  const { descripcion, referencia, fecha_origen } = body as Record<string, unknown>
+
+  if (typeof descripcion !== 'string' || descripcion.trim() === '') return c.json({ error: 'descripcion es obligatoria' }, 400)
+  if (referencia !== undefined && referencia !== null && typeof referencia !== 'string') return c.json({ error: 'referencia debe ser texto' }, 400)
+  if (fecha_origen !== undefined && fecha_origen !== null && (typeof fecha_origen !== 'string' || !ISO_DATE_RE.test(fecha_origen))) {
+    return c.json({ error: 'fecha_origen debe tener formato YYYY-MM-DD' }, 400)
+  }
+
+  try {
+    const instExists = await finanzasDb.query('SELECT 1 FROM obligaciones_fiscales_instancias WHERE id = $1', [id])
+    if (instExists.rowCount === 0) return c.json({ error: 'Instancia no encontrada' }, 404)
+
+    const result = await finanzasDb.query(
+      `INSERT INTO obligaciones_fiscales_evidencias (instancia_id, descripcion, referencia, fecha_origen)
+       VALUES ($1, $2, $3, $4)
+       RETURNING ${EVIDENCIA_FISCAL_COLS}`,
+      [id, descripcion.trim(), referencia ?? null, fecha_origen ?? null]
+    )
+    return c.json({ evidencia: result.rows[0] }, 201)
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'insert error' }, 500)
+  }
+})
+
+// DELETE /api/finanzas/fiscal/evidencias/:id
+finanzasRoutes.delete('/fiscal/evidencias/:id', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const id = c.req.param('id')
+  if (!/^\d+$/.test(id)) return c.json({ error: 'id inválido' }, 400)
+
+  try {
+    const result = await finanzasDb.query('DELETE FROM obligaciones_fiscales_evidencias WHERE id = $1', [id])
+    if (result.rowCount === 0) return c.json({ error: 'Evidencia no encontrada' }, 404)
+    return c.json({ ok: true })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'delete error' }, 500)
+  }
+})
+
+// GET /api/finanzas/fiscal/tablero — agregador de solo lectura para la
+// pantalla de entrada: qué se aproxima, qué está vencido sin presentar
+// (alerta), y qué falta por validar con la gestoría por ámbito.
+finanzasRoutes.get('/fiscal/tablero', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+
+  try {
+    const [proximosResult, vencidasResult, resumenResult] = await Promise.all([
+      finanzasDb.query(
+        `SELECT i.id, i.periodo_etiqueta, TO_CHAR(i.fecha_limite, 'YYYY-MM-DD') AS fecha_limite, i.estado,
+                (i.fecha_limite - CURRENT_DATE) AS dias_restantes,
+                o.nombre AS obligacion_nombre, o.modelo, o.bloque,
+                a.id AS ambito_id, a.nombre AS ambito_nombre, a.color AS ambito_color, a.orden AS ambito_orden
+         FROM obligaciones_fiscales_instancias i
+         JOIN obligaciones_fiscales o ON o.id = i.obligacion_id
+         JOIN ambitos a ON a.id = o.ambito_id
+         WHERE i.fecha_limite >= CURRENT_DATE
+           AND i.estado NOT IN ('presentada', 'pagada', 'archivada', 'no_aplica')
+         ORDER BY i.fecha_limite
+         LIMIT 20`
+      ),
+      finanzasDb.query(
+        `SELECT i.id, i.periodo_etiqueta, TO_CHAR(i.fecha_limite, 'YYYY-MM-DD') AS fecha_limite, i.estado,
+                (CURRENT_DATE - i.fecha_limite) AS dias_vencida,
+                o.nombre AS obligacion_nombre, o.modelo, o.bloque,
+                a.id AS ambito_id, a.nombre AS ambito_nombre, a.color AS ambito_color, a.orden AS ambito_orden
+         FROM obligaciones_fiscales_instancias i
+         JOIN obligaciones_fiscales o ON o.id = i.obligacion_id
+         JOIN ambitos a ON a.id = o.ambito_id
+         WHERE i.fecha_limite < CURRENT_DATE
+           AND i.estado NOT IN ('presentada', 'pagada', 'archivada', 'no_aplica')
+         ORDER BY i.fecha_limite`
+      ),
+      finanzasDb.query(
+        `SELECT a.id AS ambito_id, a.nombre AS ambito_nombre, a.color AS ambito_color, a.orden AS ambito_orden,
+                COUNT(*) FILTER (WHERE o.aplicabilidad = 'confirmada') AS confirmadas,
+                COUNT(*) FILTER (WHERE o.aplicabilidad = 'pendiente_validar') AS pendiente_validar,
+                COUNT(*) AS total
+         FROM obligaciones_fiscales o
+         JOIN ambitos a ON a.id = o.ambito_id
+         WHERE o.activa = true
+         GROUP BY a.id, a.nombre, a.color, a.orden
+         ORDER BY a.orden`
+      )
+    ])
+
+    return c.json({
+      hoy: new Date().toISOString().slice(0, 10),
+      proximos_vencimientos: proximosResult.rows,
+      vencidas_sin_presentar: vencidasResult.rows,
+      resumen_por_ambito: resumenResult.rows
+    })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'query error' }, 500)
+  }
+})

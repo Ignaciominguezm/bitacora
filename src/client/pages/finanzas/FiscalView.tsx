@@ -24,6 +24,10 @@ interface ObligacionFiscal {
   responsable: string | null
   condicion: string | null
   aviso: string | null
+  guia_como: string | null
+  guia_necesita: string | null
+  guia_donde: string | null
+  enlace_oficial: string | null
   activa: boolean
   ambito_nombre: string
   ambito_color: string
@@ -48,6 +52,7 @@ interface InstanciaFiscal {
   obligacion_nombre: string
   modelo: string | null
   bloque: Bloque
+  aplicabilidad: Aplicabilidad
   ambito_id: number
   ambito_nombre: string
   ambito_color: string
@@ -71,6 +76,7 @@ interface ProximoVencimiento {
   obligacion_nombre: string
   modelo: string | null
   bloque: Bloque
+  aplicabilidad: Aplicabilidad
   ambito_id: number
   ambito_nombre: string
   ambito_color: string
@@ -85,6 +91,7 @@ interface VencidaSinPresentar {
   obligacion_nombre: string
   modelo: string | null
   bloque: Bloque
+  aplicabilidad: Aplicabilidad
   ambito_id: number
   ambito_nombre: string
   ambito_color: string
@@ -198,6 +205,18 @@ export function FiscalView({ ambitos }: { ambitos: Ambito[] }) {
   )
 }
 
+// Marca heredada de la obligación: un vencimiento generado a partir de una
+// obligación 'pendiente_validar' no es más fiable que la obligación misma
+// — el usuario no debe confiar en él como si estuviera confirmado.
+function PendienteValidarBadge({ aplicabilidad }: { aplicabilidad: Aplicabilidad }) {
+  if (aplicabilidad !== 'pendiente_validar') return null
+  return (
+    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: '#f87171', border: '1px solid rgba(248,113,113,0.6)', padding: '1px 6px', fontWeight: 700 }}>
+      ⚠ obligación sin validar
+    </span>
+  )
+}
+
 function TableroFiscal() {
   const [data, setData] = useState<TableroResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -225,6 +244,10 @@ function TableroFiscal() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <section style={{ background: '#13100A', border: '1px solid rgba(200,168,64,0.15)', padding: 14 }}>
+        <GenerarVencimientosControl onGenerated={fetchTablero} />
+      </section>
+
       {data.vencidas_sin_presentar.length > 0 && (
         <section style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.5)', padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-sm)', color: '#f87171', letterSpacing: '0.1em' }}>
@@ -239,6 +262,7 @@ function TableroFiscal() {
               <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>{v.periodo_etiqueta}</span>
               <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>vencía {formatDateEs(v.fecha_limite)}</span>
               <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#f87171' }}>hace {v.dias_vencida} día{v.dias_vencida !== 1 ? 's' : ''}</span>
+              <PendienteValidarBadge aplicabilidad={v.aplicabilidad} />
               <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: ESTADO_COLOR[v.estado], marginLeft: 'auto' }}>{ESTADO_LABEL[v.estado]}</span>
             </div>
           ))}
@@ -274,6 +298,7 @@ function TableroFiscal() {
                 <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: urgente ? '#facc15' : 'var(--color-text-muted)' }}>
                   en {v.dias_restantes} día{v.dias_restantes !== 1 ? 's' : ''}
                 </span>
+                <PendienteValidarBadge aplicabilidad={v.aplicabilidad} />
                 <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: ESTADO_COLOR[v.estado], marginLeft: 'auto' }}>{ESTADO_LABEL[v.estado]}</span>
               </div>
             )
@@ -302,6 +327,168 @@ function TableroFiscal() {
           ))}
         </div>
       </section>
+    </div>
+  )
+}
+
+// El sistema SÍ agenda periodos y fechas automáticamente — presentar,
+// pagar y calcular importes siguen siendo 100% manuales. Reutilizable a
+// nivel de tablero (genera todas las obligaciones) y por obligación
+// (obligacionId acota la generación a esa sola).
+function GenerarVencimientosControl({ obligacionId, onGenerated }: { obligacionId?: number; onGenerated: () => void }) {
+  const [anio, setAnio] = useState(new Date().getFullYear())
+  const [generando, setGenerando] = useState(false)
+  const [mensaje, setMensaje] = useState<string | null>(null)
+  const [esError, setEsError] = useState(false)
+
+  async function generar() {
+    setGenerando(true)
+    setMensaje(null)
+    try {
+      const body: Record<string, unknown> = { anio }
+      if (obligacionId !== undefined) body.obligacion_id = obligacionId
+      const res = await fetch('/api/finanzas/fiscal/generar-vencimientos', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setEsError(false)
+        setMensaje(data.mensaje ?? `Se generaron ${data.generadas} vencimiento${data.generadas !== 1 ? 's' : ''} para ${anio}.`)
+        onGenerated()
+      } else {
+        setEsError(true)
+        setMensaje(data.error ?? 'Error al generar')
+      }
+    } catch {
+      setEsError(true)
+      setMensaje('Error de red')
+    } finally {
+      setGenerando(false)
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <input type="number" value={anio} onChange={(e) => setAnio(Number(e.target.value))} style={{ ...inputStyle, width: 90 }} />
+        <button onClick={generar} disabled={generando} style={{ ...smallBtn, color: '#C8A840', borderColor: 'rgba(200,168,64,0.35)' }}>
+          {generando ? 'Generando...' : `Generar vencimientos ${anio}`}
+        </button>
+      </div>
+      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)' }}>
+        Las fechas son orientativas según la regla general; verifica el calendario oficial AEAT del año para días inhábiles y traslados.
+      </span>
+      {mensaje && (
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: esError ? '#f87171' : '#4ade80' }}>{mensaje}</span>
+      )}
+    </div>
+  )
+}
+
+function GuiaObligacion({ obligacion, onSaved }: { obligacion: ObligacionFiscal; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false)
+  const [guiaComo, setGuiaComo] = useState(obligacion.guia_como ?? '')
+  const [guiaNecesita, setGuiaNecesita] = useState(obligacion.guia_necesita ?? '')
+  const [guiaDonde, setGuiaDonde] = useState(obligacion.guia_donde ?? '')
+  const [enlaceOficial, setEnlaceOficial] = useState(obligacion.enlace_oficial ?? '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const hayGuia = obligacion.guia_como || obligacion.guia_necesita || obligacion.guia_donde || obligacion.enlace_oficial
+
+  async function guardar() {
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/finanzas/fiscal/obligaciones/${obligacion.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          guia_como: guiaComo.trim() || null,
+          guia_necesita: guiaNecesita.trim() || null,
+          guia_donde: guiaDonde.trim() || null,
+          enlace_oficial: enlaceOficial.trim() || null
+        })
+      })
+      if (res.ok) {
+        setEditing(false)
+        onSaved()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setError(data.error ?? 'Error al guardar')
+      }
+    } catch {
+      setError('Error de red')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const notaGuia = 'Guía orientativa, no sustituye las instrucciones oficiales ni a tu gestoría.'
+
+  if (!editing) {
+    return (
+      <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(200,168,64,0.1)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)', letterSpacing: '0.1em' }}>GUÍA</span>
+          <button onClick={() => setEditing(true)} style={smallBtn}>{hayGuia ? 'Editar guía' : '+ Añadir guía'}</button>
+        </div>
+        {hayGuia ? (
+          <>
+            {obligacion.guia_como && (
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#A09070' }}><b>Cómo:</b> {obligacion.guia_como}</div>
+            )}
+            {obligacion.guia_necesita && (
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#A09070' }}><b>Necesitas:</b> {obligacion.guia_necesita}</div>
+            )}
+            {obligacion.guia_donde && (
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#A09070' }}><b>Dónde:</b> {obligacion.guia_donde}</div>
+            )}
+            {obligacion.enlace_oficial && (
+              <a href={obligacion.enlace_oficial} target="_blank" rel="noreferrer" style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#8B9DC8' }}>
+                {obligacion.enlace_oficial}
+              </a>
+            )}
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>{notaGuia}</span>
+          </>
+        ) : (
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>Sin guía todavía.</span>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(200,168,64,0.1)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)', letterSpacing: '0.1em' }}>EDITAR GUÍA</span>
+      <div>
+        <label style={labelStyle}>CÓMO</label>
+        <textarea value={guiaComo} onChange={(e) => setGuiaComo(e.target.value)} style={{ ...inputStyle, resize: 'vertical', width: '100%' }} rows={2} />
+      </div>
+      <div>
+        <label style={labelStyle}>QUÉ NECESITAS</label>
+        <textarea value={guiaNecesita} onChange={(e) => setGuiaNecesita(e.target.value)} style={{ ...inputStyle, resize: 'vertical', width: '100%' }} rows={2} />
+      </div>
+      <div>
+        <label style={labelStyle}>DÓNDE</label>
+        <textarea value={guiaDonde} onChange={(e) => setGuiaDonde(e.target.value)} style={{ ...inputStyle, resize: 'vertical', width: '100%' }} rows={2} />
+      </div>
+      <div>
+        <label style={labelStyle}>ENLACE OFICIAL</label>
+        <input value={enlaceOficial} onChange={(e) => setEnlaceOficial(e.target.value)} style={{ ...inputStyle, width: '100%' }} placeholder="https://sede.agenciatributaria.gob.es/..." />
+      </div>
+      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>{notaGuia}</span>
+      {error && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#f87171' }}>{error}</span>}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button onClick={() => setEditing(false)} style={{ ...smallBtn, padding: '6px 12px' }}>Cancelar</button>
+        <button onClick={guardar} disabled={saving} style={{ ...smallBtn, color: '#C8A840', borderColor: 'rgba(200,168,64,0.35)', padding: '6px 12px' }}>
+          {saving ? 'Guardando...' : 'Guardar'}
+        </button>
+      </div>
     </div>
   )
 }
@@ -450,7 +637,12 @@ function ObligacionRow({
         <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: '#facc15' }}>⚠ {obligacion.aviso}</div>
       )}
 
-      {expanded && <InstanciasDeObligacion obligacionId={obligacion.id} />}
+      {expanded && (
+        <>
+          <GuiaObligacion obligacion={obligacion} onSaved={onSaved} />
+          <InstanciasDeObligacion obligacionId={obligacion.id} />
+        </>
+      )}
     </div>
   )
 }
@@ -495,6 +687,8 @@ function InstanciasDeObligacion({ obligacionId }: { obligacionId: number }) {
         <button onClick={() => setShowForm(true)} style={{ ...smallBtn, color: '#C8A840', borderColor: 'rgba(200,168,64,0.35)' }}>+ Nuevo vencimiento</button>
       </div>
 
+      <GenerarVencimientosControl obligacionId={obligacionId} onGenerated={fetchInstancias} />
+
       {loading ? (
         <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>Cargando...</div>
       ) : instancias.length === 0 ? (
@@ -513,6 +707,7 @@ function InstanciasDeObligacion({ obligacionId }: { obligacionId: number }) {
                   {ESTADO_LABEL[inst.estado]}
                 </span>
                 {inst.revisor && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 'var(--text-2xs)', color: 'var(--color-text-muted)' }}>revisor: {inst.revisor}</span>}
+                <PendienteValidarBadge aplicabilidad={inst.aplicabilidad} />
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={() => setDetalleId(inst.id)} style={smallBtn}>Gestionar</button>

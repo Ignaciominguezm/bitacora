@@ -2988,7 +2988,7 @@ const isEstadoInstanciaFiscal = (v: unknown): v is (typeof ESTADOS_INSTANCIA_FIS
 
 const OBLIGACION_FISCAL_COLS = `o.id, o.ambito_id, o.codigo, o.nombre, o.modelo, o.bloque, o.tipo, o.organismo,
   o.aplicabilidad, o.prioridad, o.periodicidad, o.regla_plazo, o.evidencia_min, o.responsable, o.condicion,
-  o.aviso, o.activa, o.created_at, o.updated_at`
+  o.aviso, o.guia_como, o.guia_necesita, o.guia_donde, o.enlace_oficial, o.activa, o.created_at, o.updated_at`
 
 const INSTANCIA_FISCAL_COLS = `i.id, i.obligacion_id, TO_CHAR(i.periodo, 'YYYY-MM-DD') AS periodo, i.periodo_etiqueta,
   TO_CHAR(i.fecha_apertura, 'YYYY-MM-DD') AS fecha_apertura,
@@ -3096,8 +3096,10 @@ finanzasRoutes.post('/fiscal/obligaciones', async (c) => {
 })
 
 // PATCH /api/finanzas/fiscal/obligaciones/:id — aplicabilidad, prioridad,
-// activa, aviso. (El esquema del catálogo no tiene columna "notas" propia
-// — "aviso" es su campo de texto libre; ver nota en la entrega.)
+// activa, aviso, y los cuatro campos de guía (guia_como, guia_necesita,
+// guia_donde, enlace_oficial — migración 008). (El esquema del catálogo
+// no tiene columna "notas" propia — "aviso" es su campo de texto libre;
+// ver nota en la entrega.)
 finanzasRoutes.patch('/fiscal/obligaciones/:id', async (c) => {
   if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
   const id = c.req.param('id')
@@ -3105,7 +3107,7 @@ finanzasRoutes.patch('/fiscal/obligaciones/:id', async (c) => {
 
   const body = await c.req.json().catch(() => null)
   if (!body || typeof body !== 'object') return c.json({ error: 'Body inválido' }, 400)
-  const { aplicabilidad, prioridad, activa, aviso } = body as Record<string, unknown>
+  const { aplicabilidad, prioridad, activa, aviso, guia_como, guia_necesita, guia_donde, enlace_oficial } = body as Record<string, unknown>
 
   const sets: string[] = []
   const params: unknown[] = []
@@ -3130,6 +3132,26 @@ finanzasRoutes.patch('/fiscal/obligaciones/:id', async (c) => {
     params.push(aviso)
     sets.push(`aviso = $${params.length}`)
   }
+  if (guia_como !== undefined) {
+    if (guia_como !== null && typeof guia_como !== 'string') return c.json({ error: 'guia_como debe ser texto' }, 400)
+    params.push(guia_como)
+    sets.push(`guia_como = $${params.length}`)
+  }
+  if (guia_necesita !== undefined) {
+    if (guia_necesita !== null && typeof guia_necesita !== 'string') return c.json({ error: 'guia_necesita debe ser texto' }, 400)
+    params.push(guia_necesita)
+    sets.push(`guia_necesita = $${params.length}`)
+  }
+  if (guia_donde !== undefined) {
+    if (guia_donde !== null && typeof guia_donde !== 'string') return c.json({ error: 'guia_donde debe ser texto' }, 400)
+    params.push(guia_donde)
+    sets.push(`guia_donde = $${params.length}`)
+  }
+  if (enlace_oficial !== undefined) {
+    if (enlace_oficial !== null && typeof enlace_oficial !== 'string') return c.json({ error: 'enlace_oficial debe ser texto' }, 400)
+    params.push(enlace_oficial)
+    sets.push(`enlace_oficial = $${params.length}`)
+  }
 
   if (sets.length === 0) return c.json({ error: 'Nada que actualizar' }, 400)
   sets.push('updated_at = now()')
@@ -3144,6 +3166,142 @@ finanzasRoutes.patch('/fiscal/obligaciones/:id', async (c) => {
     return c.json({ obligacion: result.rows[0] })
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'update error' }, 500)
+  }
+})
+
+// ─── generación automática de vencimientos fiscales ─────────────────────
+// El sistema SÍ agenda periodos y fechas orientativas automáticamente —
+// eso es seguro y deseado (recordar "el 303 3T vence ~20/10" no es
+// "presentar" ni "calcular importes"). Lo que sigue siendo 100% manual:
+// presentar/pagar (con doble control, revisor) e importe_estimado (nunca
+// calculado). Idempotente vía ON CONFLICT (obligacion_id, periodo) DO
+// NOTHING — re-generar nunca duplica ni pisa una fecha_limite que el
+// usuario ya haya ajustado a mano.
+
+const MESES_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+
+function ymdFiscal(year: number, month0: number, day: number): string {
+  return `${year}-${pad2(month0 + 1)}-${pad2(day)}`
+}
+
+interface InstanciaFiscalGenerada {
+  periodo: string
+  periodo_etiqueta: string
+  fecha_limite: string | null
+}
+
+// Reglas aproximadas (documentadas en la tarea): el calendario oficial
+// AEAT de cada año puede mover días inhábiles — el usuario ajusta cada
+// fecha después si hace falta. segun_evento/continua/puntual no generan
+// nada aquí (no tienen periodicidad fija) — el alta manual sigue existiendo.
+function generarVencimientosFiscales(
+  obligacion: { modelo: string | null; nombre: string; periodicidad: string },
+  anio: number
+): InstanciaFiscalGenerada[] {
+  const { periodicidad, modelo, nombre } = obligacion
+
+  if (periodicidad === 'trimestral') {
+    const trimestres: Array<{ mes0: number; limite: string }> = [
+      { mes0: 0, limite: ymdFiscal(anio, 3, 20) },
+      { mes0: 3, limite: ymdFiscal(anio, 6, 20) },
+      { mes0: 6, limite: ymdFiscal(anio, 9, 20) },
+      { mes0: 9, limite: ymdFiscal(anio + 1, 0, 30) }
+    ]
+    return trimestres.map((t, i) => ({
+      periodo: ymdFiscal(anio, t.mes0, 1),
+      periodo_etiqueta: `${i + 1}T ${anio}`,
+      fecha_limite: t.limite
+    }))
+  }
+
+  if (periodicidad === 'mensual') {
+    return Array.from({ length: 12 }, (_, m) => ({
+      periodo: ymdFiscal(anio, m, 1),
+      periodo_etiqueta: `${MESES_ES[m]} ${anio}`,
+      fecha_limite: ymdFiscal(anio, m, lastDayOfMonth(anio, m))
+    }))
+  }
+
+  if (periodicidad === 'anual') {
+    // Heurística solo por nombre/modelo — deliberadamente NO por `tipo`
+    // ("mercantil"/"contable" son categorías legales amplias que también
+    // cubren cosas como "Titularidad real", que no es un depósito de
+    // cuentas ni una legalización de libros). Cualquier anual que no
+    // encaje en un patrón reconocido queda con fecha_limite NULL — el
+    // usuario la ajusta (spec: "o NULL si no es un modelo AEAT").
+    const nombreLower = nombre.toLowerCase()
+    let fechaLimite: string | null = null
+    if (modelo === '390') fechaLimite = ymdFiscal(anio + 1, 0, 30)
+    else if (modelo === '200') fechaLimite = ymdFiscal(anio + 1, 6, 25)
+    else if (nombreLower.includes('libro')) fechaLimite = ymdFiscal(anio + 1, 3, 30)
+    else if (nombreLower.includes('cuenta')) fechaLimite = ymdFiscal(anio + 1, 6, 30)
+
+    return [{ periodo: ymdFiscal(anio, 0, 1), periodo_etiqueta: `Ejercicio ${anio}`, fecha_limite: fechaLimite }]
+  }
+
+  return []
+}
+
+// POST /api/finanzas/fiscal/generar-vencimientos — body {anio, obligacion_id?}.
+// Sin obligacion_id: genera para TODAS las obligaciones activas cuya
+// aplicabilidad no sea 'no_aplica' (incluye 'pendiente_validar' — el
+// frontend las marca visualmente heredando el aviso de la obligación).
+finanzasRoutes.post('/fiscal/generar-vencimientos', async (c) => {
+  if (!finanzasDb) return c.json({ error: 'FINANZAS_DB_URL no configurada' }, 503)
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Body inválido' }, 400)
+  const { anio, obligacion_id } = body as Record<string, unknown>
+
+  if (typeof anio !== 'number' || !Number.isInteger(anio) || anio < 2000 || anio > 2100) {
+    return c.json({ error: 'anio es obligatorio y debe ser un año válido' }, 400)
+  }
+  if (obligacion_id !== undefined && obligacion_id !== null && (typeof obligacion_id !== 'number' || !Number.isInteger(obligacion_id))) {
+    return c.json({ error: 'obligacion_id debe ser un entero' }, 400)
+  }
+  const soloUnaObligacion = typeof obligacion_id === 'number'
+
+  try {
+    const params: unknown[] = []
+    let where = `WHERE o.activa = true AND o.aplicabilidad <> 'no_aplica'`
+    if (soloUnaObligacion) {
+      params.push(obligacion_id)
+      where += ` AND o.id = $${params.length}`
+    }
+
+    const obligacionesResult = await finanzasDb.query(
+      `SELECT o.id, o.nombre, o.modelo, o.tipo, o.periodicidad FROM obligaciones_fiscales o ${where}`,
+      params
+    )
+
+    if (soloUnaObligacion && obligacionesResult.rowCount === 0) {
+      const existe = await finanzasDb.query('SELECT 1 FROM obligaciones_fiscales WHERE id = $1', [obligacion_id])
+      if (existe.rowCount === 0) return c.json({ error: 'obligacion_id no existe' }, 400)
+      return c.json({ anio, generadas: 0, detalle: [], mensaje: 'Esta obligación está inactiva o marcada como no aplica — no se generan vencimientos' })
+    }
+
+    let totalGeneradas = 0
+    const detalle: Array<{ obligacion_id: number; nombre: string; generadas: number }> = []
+
+    for (const obl of obligacionesResult.rows) {
+      const instancias = generarVencimientosFiscales(obl, anio)
+      let generadasEsta = 0
+      for (const inst of instancias) {
+        const result = await finanzasDb.query(
+          `INSERT INTO obligaciones_fiscales_instancias (obligacion_id, periodo, periodo_etiqueta, fecha_limite, estado)
+           VALUES ($1, $2, $3, $4, 'pendiente')
+           ON CONFLICT (obligacion_id, periodo) DO NOTHING
+           RETURNING id`,
+          [obl.id, inst.periodo, inst.periodo_etiqueta, inst.fecha_limite]
+        )
+        if ((result.rowCount ?? 0) > 0) generadasEsta++
+      }
+      totalGeneradas += generadasEsta
+      if (instancias.length > 0) detalle.push({ obligacion_id: obl.id, nombre: obl.nombre, generadas: generadasEsta })
+    }
+
+    return c.json({ anio, generadas: totalGeneradas, detalle })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'insert error' }, 500)
   }
 })
 
@@ -3192,7 +3350,7 @@ finanzasRoutes.get('/fiscal/instancias', async (c) => {
   try {
     const result = await finanzasDb.query(
       `SELECT ${INSTANCIA_FISCAL_COLS},
-              o.nombre AS obligacion_nombre, o.modelo, o.bloque, o.prioridad,
+              o.nombre AS obligacion_nombre, o.modelo, o.bloque, o.prioridad, o.aplicabilidad,
               a.id AS ambito_id, a.nombre AS ambito_nombre, a.color AS ambito_color, a.orden AS ambito_orden
        FROM obligaciones_fiscales_instancias i
        JOIN obligaciones_fiscales o ON o.id = i.obligacion_id
@@ -3461,7 +3619,7 @@ finanzasRoutes.get('/fiscal/tablero', async (c) => {
       finanzasDb.query(
         `SELECT i.id, i.periodo_etiqueta, TO_CHAR(i.fecha_limite, 'YYYY-MM-DD') AS fecha_limite, i.estado,
                 (i.fecha_limite - CURRENT_DATE) AS dias_restantes,
-                o.nombre AS obligacion_nombre, o.modelo, o.bloque,
+                o.nombre AS obligacion_nombre, o.modelo, o.bloque, o.aplicabilidad,
                 a.id AS ambito_id, a.nombre AS ambito_nombre, a.color AS ambito_color, a.orden AS ambito_orden
          FROM obligaciones_fiscales_instancias i
          JOIN obligaciones_fiscales o ON o.id = i.obligacion_id
@@ -3474,7 +3632,7 @@ finanzasRoutes.get('/fiscal/tablero', async (c) => {
       finanzasDb.query(
         `SELECT i.id, i.periodo_etiqueta, TO_CHAR(i.fecha_limite, 'YYYY-MM-DD') AS fecha_limite, i.estado,
                 (CURRENT_DATE - i.fecha_limite) AS dias_vencida,
-                o.nombre AS obligacion_nombre, o.modelo, o.bloque,
+                o.nombre AS obligacion_nombre, o.modelo, o.bloque, o.aplicabilidad,
                 a.id AS ambito_id, a.nombre AS ambito_nombre, a.color AS ambito_color, a.orden AS ambito_orden
          FROM obligaciones_fiscales_instancias i
          JOIN obligaciones_fiscales o ON o.id = i.obligacion_id
